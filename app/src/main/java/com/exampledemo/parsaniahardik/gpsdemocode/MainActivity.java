@@ -82,35 +82,45 @@ public class MainActivity extends
         mMapView.setBuiltInZoomControls(true);
         mMapController = (MapController) mMapView.getController();
         mMapController.setZoom(100);
-        mGoogleApiClient = new GoogleApiClient.Builder(this).addConnectionCallbacks(this).addOnConnectionFailedListener(this).
-                addApi(LocationServices.API).build();
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API).build();
 
         mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
         mHttpRequest = new HttpRequestThread(this);
         mHttpRequest.start();
+
         try {
             m_KalmanApp = new KalmanApp();
         } catch (Exception e) {
             e.printStackTrace();
         }
+
         InitializeMarkersOverlay();
     }
 
     @Override
     public void onLocationChanged(Location location) {
-        GeoPoint gPt = new GeoPoint(location.getLatitude(), location.getLongitude());
+        GeoPoint gPt = new GeoPoint(
+                location.getLatitude(),
+                location.getLongitude()
+        );
+
         mMapController.setCenter(gPt);
+
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
+
         gPt = m_KalmanApp.Evaluate(gPt);
         PostClosestIntersectionRequest(gPt);
     }
 
     @Override
     public void onConnected(Bundle bundle) {
-        if (ActivityCompat.
-                checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+        {
             return;
         }
 
@@ -158,12 +168,13 @@ public class MainActivity extends
             doc =  builder.parse(new InputSource(new StringReader(strResponse)));
             NodeList e = doc.getElementsByTagName("intersection");
             if (((Element)e.item(0)).getElementsByTagName("lat") != null &&
-                    ((Element)e.item(0)).getElementsByTagName("lng") != null) {
+                ((Element)e.item(0)).getElementsByTagName("lng") != null) {
 
                 GeoPoint gPt = new GeoPoint(
                         Double.parseDouble(((Element) e.item(0)).getElementsByTagName("lat").item(0).getTextContent()),
                         Double.parseDouble(((Element) e.item(0)).getElementsByTagName("lng").item(0).getTextContent())
                 );
+
                 AddPointToOverlay(gPt, 1, R.drawable.pininter);
             }
             mMapView.invalidate();
@@ -176,7 +187,6 @@ public class MainActivity extends
         } catch (Exception e) {
             e.printStackTrace();
         }
-
     }
 
     private void initKalmanFilter() {
@@ -238,6 +248,7 @@ public class MainActivity extends
         mOverlayItemArrayList = new ArrayList<>();
         mItemizedOverlayLocation = new ItemizedIconOverlay<>(this, mOverlayItemArrayList, null);
         mMapView.getOverlays().add(mItemizedOverlayLocation);
+
         mOverlayItemNextIntersectionList = new ArrayList<>();
         mItemizedOverlayNextIntersection = new ItemizedIconOverlay<>(this, mOverlayItemNextIntersectionList, null);
         mMapView.getOverlays().add(mItemizedOverlayNextIntersection);
@@ -249,16 +260,10 @@ public class MainActivity extends
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(UPDATE_INTERVAL)
                 .setFastestInterval(FASTEST_INTERVAL);
-        // Request location updates
-        if (ActivityCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-        {
-            return;
-        }
 
-        LocationServices.FusedLocationApi.requestLocationUpdates(
-                mGoogleApiClient, mLocationRequest, this);
+        LocationServices.
+                FusedLocationApi
+                .requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
     }
 
     private void PostClosestIntersectionRequest(GeoPoint gPt) {
