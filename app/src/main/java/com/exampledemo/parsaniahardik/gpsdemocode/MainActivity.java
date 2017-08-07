@@ -14,8 +14,6 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 
-import com.exampledemo.parsaniahardik.jama.Matrix;
-import com.exampledemo.parsaniahardik.jkalman.JKalman;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
@@ -37,7 +35,6 @@ import org.xml.sax.SAXException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Random;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -70,7 +67,7 @@ public class MainActivity extends
 
     private HttpRequestThread mHttpRequest;
 
-    private JKalman m_Jkalman;
+    private KalmanApp m_KalmanApp;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,7 +88,11 @@ public class MainActivity extends
         mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
         mHttpRequest = new HttpRequestThread(this);
         mHttpRequest.start();
-        initKalmanFilter();
+        try {
+            m_KalmanApp = new KalmanApp();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         InitializeMarkersOverlay();
     }
 
@@ -101,7 +102,7 @@ public class MainActivity extends
         mMapController.setCenter(gPt);
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
-
+        gPt = m_KalmanApp.Evaluate(gPt);
         PostClosestIntersectionRequest(gPt);
     }
 
@@ -165,7 +166,7 @@ public class MainActivity extends
                 );
                 AddPointToOverlay(gPt, 1, R.drawable.pininter);
             }
-            //mMapView.invalidate();
+            mMapView.invalidate();
         } catch (SAXException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -180,7 +181,7 @@ public class MainActivity extends
 
     private void initKalmanFilter() {
 
-        try {
+        /*try {
             m_Jkalman = new JKalman(4, 2);
         } catch (Exception e) {
             e.printStackTrace();
@@ -210,7 +211,7 @@ public class MainActivity extends
         m_Jkalman.setTransition_matrix(new Matrix(tr));
 
         // 1s somewhere?
-        m_Jkalman.setError_cov_post(m_Jkalman.getError_cov_post().identity());
+        m_Jkalman.setError_cov_post(m_Jkalman.getError_cov_post().identity());*/
 
         /*Log.d("KalmanFilter", "first x:" + x + ", y:" + y + ", dx:" + dx + ", dy:" + dy);
         Log.d("KalmanFilter", "no; x; y; dx; dy; predictionX; predictionY; predictionDx; predictionDy; correctionX; correctionY; correctionDx; correctionDy;");
