@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/GPSDemocode.iml" filepath="$PROJECT_DIR$/GPSDemocode.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
       <module fileurl="file://$PROJECT_DIR$/osmdroid-android-4.1/osmdroid-android-4.1.iml" filepath="$PROJECT_DIR$/osmdroid-android-4.1/osmdroid-android-4.1.iml" />
+      <module fileurl="file://$PROJECT_DIR$/sense.A.iml" filepath="$PROJECT_DIR$/sense.A.iml" />
       <module fileurl="file://$PROJECT_DIR$/slf4j-api-1.7.10/slf4j-api-1.7.10.iml" filepath="$PROJECT_DIR$/slf4j-api-1.7.10/slf4j-api-1.7.10.iml" />
     </modules>
   </component>
