@@ -67,7 +67,7 @@ public class MainActivity extends
 
     private HttpRequestThread mHttpRequest;
 
-    private KalmanApp m_KalmanApp;
+    private KalmanGPS m_KalmanGPS;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,7 +92,7 @@ public class MainActivity extends
         mHttpRequest.start();
 
         try {
-            m_KalmanApp = new KalmanApp();
+            m_KalmanGPS = new KalmanGPS();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -112,7 +112,7 @@ public class MainActivity extends
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
 
-        gPt = m_KalmanApp.Evaluate(gPt);
+        gPt = m_KalmanGPS.Evaluate(gPt);
         PostClosestIntersectionRequest(gPt);
     }
 
@@ -187,61 +187,6 @@ public class MainActivity extends
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
-
-    private void initKalmanFilter() {
-
-        /*try {
-            m_Jkalman = new JKalman(4, 2);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        Random rand = new Random(System.currentTimeMillis() % 2011);
-        double x = 0;
-        double y = 0;
-        // constant velocity
-        double dx = rand.nextDouble();
-        double dy = rand.nextDouble();
-
-        // init
-        Matrix s = new Matrix(4, 1); // state [x, y, dx, dy, dxy]
-        Matrix c = new Matrix(4, 1); // corrected state [x, y, dx, dy, dxy]
-
-        Matrix m = new Matrix(2, 1); // measurement [x]
-        m.set(0, 0, x);
-        m.set(1, 0, y);
-
-        // transitions for x, y, dx, dy
-        double[][] tr = { {1, 0, 1, 0},
-                {0, 1, 0, 1},
-                {0, 0, 1, 0},
-                {0, 0, 0, 1} };
-
-        m_Jkalman.setTransition_matrix(new Matrix(tr));
-
-        // 1s somewhere?
-        m_Jkalman.setError_cov_post(m_Jkalman.getError_cov_post().identity());*/
-
-        /*Log.d("KalmanFilter", "first x:" + x + ", y:" + y + ", dx:" + dx + ", dy:" + dy);
-        Log.d("KalmanFilter", "no; x; y; dx; dy; predictionX; predictionY; predictionDx; predictionDy; correctionX; correctionY; correctionDx; correctionDy;");
-
-        // For debug only
-        for (int i = 0; i < 200; ++i) {
-            s = m_Jkalman.Predict();
-
-            x = rand.nextGaussian();
-            y = rand.nextGaussian();
-
-            m.set(0, 0, m.get(0, 0) + dx + rand.nextGaussian());
-            m.set(1, 0, m.get(1, 0) + dy + rand.nextGaussian());
-
-            c = m_Jkalman.Correct(m);
-
-            Log.d("KalmanFilter", "" + i + ";" +  m.get(0, 0) + ";" + m.get(1, 0) + ";" + x + ";" + y + ";"
-                    + s.get(0, 0) + ";" + s.get(1, 0) + ";" + s.get(2, 0) + ";" + s.get(3, 0) + ";"
-                    + c.get(0, 0) + ";" + c.get(1, 0) + ";" + c.get(2, 0) + ";" + c.get(3, 0) + ";");
-        }*/
     }
 
     private void InitializeMarkersOverlay() {
