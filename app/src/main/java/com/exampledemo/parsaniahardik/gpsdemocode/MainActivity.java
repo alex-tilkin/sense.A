@@ -112,7 +112,13 @@ public class MainActivity extends
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
 
-        gPt = m_KalmanGPS.Evaluate(gPt);
+        try {
+            m_KalmanGPS.push(gPt.getLongitude(), gPt.getLatitude());
+            double[] coordinate = m_KalmanGPS.getPostion();
+            gPt = new GeoPoint(coordinate[0], coordinate[1]);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         PostClosestIntersectionRequest(gPt);
     }
 

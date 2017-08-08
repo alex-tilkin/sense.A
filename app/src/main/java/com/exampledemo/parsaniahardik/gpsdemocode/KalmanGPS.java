@@ -35,9 +35,9 @@ public class KalmanGPS {
         m_Kalman.setError_cov_post(m_Kalman.getError_cov_post().identity());
     }
 
-    public void push(double x,double y) throws Exception{
-        m_MeasurementMatrix.set(0, 0, x);
-        m_MeasurementMatrix.set(1, 0, y);
+    public void push(double longtitude,double latitude) throws Exception{
+        m_MeasurementMatrix.set(0, 0, longtitude);
+        m_MeasurementMatrix.set(1, 0, latitude);
 
         m_CorrectionMatrix = m_Kalman.Correct(m_MeasurementMatrix);
         m_StateMatrix = m_Kalman.Predict();
