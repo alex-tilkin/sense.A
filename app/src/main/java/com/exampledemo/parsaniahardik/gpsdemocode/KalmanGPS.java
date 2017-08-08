@@ -6,7 +6,7 @@ import com.exampledemo.parsaniahardik.jkalman.JKalman;
 public class KalmanGPS {
     private JKalman m_Kalman;
     private Matrix m_StateMatrix; // state [x, y, dx, dy, dxy]
-    private Matrix m_CorrectedMatrix; // corrected state [x, y, dx, dy, dxy]
+    private Matrix m_CorrectionMatrix; // corrected state [x, y, dx, dy, dxy]
     private Matrix m_MeasurementMatrix; // measurement [x]
 
     public KalmanGPS() throws Exception{
@@ -19,7 +19,7 @@ public class KalmanGPS {
         dy = 0.2;
 
         m_StateMatrix = new Matrix(4, 1); // state [x, y, dx, dy, dxy]
-        m_CorrectedMatrix = new Matrix(4, 1); // corrected state [x, y, dx, dy, dxy]
+        m_CorrectionMatrix = new Matrix(4, 1); // corrected state [x, y, dx, dy, dxy]
 
         m_MeasurementMatrix = new Matrix(2, 1); // measurement [x]
         m_MeasurementMatrix.set(0, 0, 0);
@@ -39,15 +39,15 @@ public class KalmanGPS {
         m_MeasurementMatrix.set(0, 0, x);
         m_MeasurementMatrix.set(1, 0, y);
 
-        m_CorrectedMatrix = m_Kalman.Correct(m_MeasurementMatrix);
+        m_CorrectionMatrix = m_Kalman.Correct(m_MeasurementMatrix);
         m_StateMatrix = m_Kalman.Predict();
     }
 
     public double[] getPostion() throws Exception{
         double[] coordinate = new double[2];
 
-        coordinate[0] = m_CorrectedMatrix.get(0,0);
-        coordinate[1] = m_CorrectedMatrix.get(1,0);
+        coordinate[0] = m_CorrectionMatrix.get(0,0);
+        coordinate[1] = m_CorrectionMatrix.get(1,0);
 
         return coordinate;
     }
