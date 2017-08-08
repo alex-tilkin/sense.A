@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
@@ -13,12 +14,14 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.MotionEvent;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 
+import org.osmdroid.ResourceProxy;
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapController;
@@ -35,11 +38,37 @@ import org.xml.sax.SAXException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+class ExtendedItemizedIconOverlay <Item extends OverlayItem>
+        extends ItemizedIconOverlay {
+    private MainActivity oSender;
+
+    public ExtendedItemizedIconOverlay(List pList, Drawable pDefaultMarker, OnItemGestureListener pOnItemGestureListener, ResourceProxy pResourceProxy) {
+        super(pList, pDefaultMarker, pOnItemGestureListener, pResourceProxy);
+    }
+
+    public ExtendedItemizedIconOverlay(MainActivity mainActivity, ArrayList<OverlayItem> mOverlayItemArrayList, Object o) {
+        super(mainActivity, mOverlayItemArrayList, (OnItemGestureListener) o);
+        oSender = mainActivity;
+    }
+
+    @Override
+    public boolean onSingleTapConfirmed(MotionEvent event, final MapView mapView) {
+        MapView.Projection proj = mapView.getProjection();
+        GeoPoint loc = (GeoPoint)proj.fromPixels((int)event.getX(), (int)event.getY());
+        Location l = new Location("Manual");
+        l.setLatitude(((double)loc.getLatitudeE6())/1000000);
+        l.setLongitude(((double)loc.getLongitudeE6())/1000000);
+        oSender.onLocationChanged(l, false);
+        return true;
+    }
+
+}
 public class MainActivity extends
         AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -102,12 +131,17 @@ public class MainActivity extends
 
     @Override
     public void onLocationChanged(Location location) {
+        onLocationChanged(location, true);
+    }
+
+    public void onLocationChanged(Location location, boolean bSetCenter) {
         GeoPoint gPt = new GeoPoint(
                 location.getLatitude(),
                 location.getLongitude()
         );
 
-        mMapController.setCenter(gPt);
+        if(bSetCenter)
+            mMapController.setCenter(gPt);
 
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
@@ -197,7 +231,7 @@ public class MainActivity extends
 
     private void InitializeMarkersOverlay() {
         mOverlayItemArrayList = new ArrayList<>();
-        mItemizedOverlayLocation = new ItemizedIconOverlay<>(this, mOverlayItemArrayList, null);
+        mItemizedOverlayLocation = new ExtendedItemizedIconOverlay<OverlayItem>(this, mOverlayItemArrayList, null);
         mMapView.getOverlays().add(mItemizedOverlayLocation);
 
         mOverlayItemNextIntersectionList = new ArrayList<>();
