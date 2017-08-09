@@ -69,6 +69,7 @@ class ExtendedItemizedIconOverlay <Item extends OverlayItem>
     }
 
 }
+
 public class MainActivity extends
         AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -76,6 +77,7 @@ public class MainActivity extends
         com.google.android.gms.location.LocationListener,
         IHttpRequestResponse
 {
+    //region Fields
     private static final String TAG = "MainActivity";
     private GoogleApiClient mGoogleApiClient;
     private LocationManager mLocationManager;
@@ -97,6 +99,7 @@ public class MainActivity extends
     private HttpRequestThread mHttpRequest;
 
     private KalmanGPS m_KalmanGPS;
+    //endregion
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -119,12 +122,12 @@ public class MainActivity extends
         mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
         mHttpRequest = new HttpRequestThread(this);
         mHttpRequest.start();
-
-        try {
-            m_KalmanGPS = new KalmanGPS();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+//
+//        try {
+//            m_KalmanGPS = new KalmanGPS();
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
 
         InitializeMarkersOverlay();
     }
@@ -146,13 +149,13 @@ public class MainActivity extends
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
 
-        try {
-            m_KalmanGPS.push(gPt.getLongitude(), gPt.getLatitude());
-            double[] coordinate = m_KalmanGPS.getPostion();
-            gPt = new GeoPoint(coordinate[0], coordinate[1]);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+//        try {
+//            m_KalmanGPS.push(gPt.getLongitude(), gPt.getLatitude());
+//            //double[] coordinate = m_KalmanGPS.getPostion();
+//            //gPt = new GeoPoint(coordinate[0], coordinate[1]);
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
         PostClosestIntersectionRequest(gPt);
     }
 
@@ -214,10 +217,14 @@ public class MainActivity extends
                         Double.parseDouble(((Element) e.item(0)).getElementsByTagName("lat").item(0).getTextContent()),
                         Double.parseDouble(((Element) e.item(0)).getElementsByTagName("lng").item(0).getTextContent())
                 );
-
                 AddPointToOverlay(gPt, 1, R.drawable.pininter);
             }
-            mMapView.invalidate();
+            mMapView.post(new Runnable() {
+                @Override
+                public void run() {
+                    mMapView.invalidate();
+                }
+            });
         } catch (SAXException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -259,15 +266,27 @@ public class MainActivity extends
         mHttpRequest.AddRequest(strUrl);
     }
 
-    private void AddPointToOverlay(GeoPoint gPt, int index, int iDrawable) {
-        OverlayItem overlayItem = new OverlayItem("", "", gPt);
+    private void AddPointToOverlay(final GeoPoint gPt, final int index, int iDrawable) {
+        final OverlayItem overlayItem = new OverlayItem("", "", gPt);
         //Drawable markerDrawable = ContextCompat.getDrawable(this, iDrawable);
         //overlayItem.setMarker(markerDrawable);
 
-        if(mMapView.getOverlays().size() > 0) {
-            ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).removeAllItems();
-            ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).addItem(overlayItem);
-        }
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                //method which was problematic and was casing a problem
+                if(mMapView.getOverlays().size() > 0) {
+
+                    ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).removeAllItems();
+                    ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).addItem(overlayItem);
+                }
+            }
+        });
+//        if(mMapView.getOverlays().size() > 0) {
+//
+//            ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).removeAllItems();
+//            ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).addItem(overlayItem);
+//        }
     }
 
     private boolean CheckLocation() {

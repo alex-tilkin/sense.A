@@ -4,11 +4,17 @@ import com.exampledemo.parsaniahardik.jama.Matrix;
 import com.exampledemo.parsaniahardik.jkalman.JKalman;
 
 public class KalmanGPS {
+
+    //region Fields
     private JKalman m_Kalman;
     private Matrix m_StateMatrix; // state [x, y, dx, dy, dxy]
     private Matrix m_CorrectionMatrix; // corrected state [x, y, dx, dy, dxy]
     private Matrix m_MeasurementMatrix; // measurement [x]
+    private int samplingThreshold = 100;
+    private int sampleCnt = 0;
+    //endregion
 
+    //region API
     public KalmanGPS() throws Exception{
         double dx, dy;
 
@@ -35,15 +41,21 @@ public class KalmanGPS {
         m_Kalman.setError_cov_post(m_Kalman.getError_cov_post().identity());
     }
 
-    public void push(double longtitude,double latitude) throws Exception{
-        m_MeasurementMatrix.set(0, 0, longtitude);
+    public void push(double longitude,double latitude) throws Exception{
+        m_MeasurementMatrix.set(0, 0, longitude);
         m_MeasurementMatrix.set(1, 0, latitude);
 
-        m_CorrectionMatrix = m_Kalman.Correct(m_MeasurementMatrix);
         m_StateMatrix = m_Kalman.Predict();
+        m_CorrectionMatrix = m_Kalman.Correct(m_MeasurementMatrix);
     }
 
-    public double[] getPostion() throws Exception{
+    public double[] getCoordinate() throws Exception {
+        return sampleCnt++ < samplingThreshold ? getMeasuredPosition() : getCorrectedPosition();
+    }
+    //endregion
+
+    //region Helpers
+    private double[] getCorrectedPosition() throws Exception{
         double[] coordinate = new double[2];
 
         coordinate[0] = m_CorrectionMatrix.get(0,0);
@@ -52,11 +64,20 @@ public class KalmanGPS {
         return coordinate;
     }
 
-    public double[] getPrediction() throws Exception{
+    private double[] getMeasuredPosition() throws Exception{
+        double[] point = new double[2];
+        point[0] = m_MeasurementMatrix.get(0,0);
+        point[1] = m_MeasurementMatrix.get(1,0);
+
+        return point;
+    }
+
+    private double[] getPredictedPosition() throws Exception{
         double[] point = new double[2];
         point[0] = m_StateMatrix.get(0,0);
         point[1] = m_StateMatrix.get(1,0);
 
         return point;
     }
+    //endregion
 }
