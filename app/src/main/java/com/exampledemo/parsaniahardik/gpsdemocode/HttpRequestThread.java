@@ -11,13 +11,17 @@ import java.util.ArrayList;
 import java.util.concurrent.Semaphore;
 
 public class HttpRequestThread extends Thread {
+
+    //region Fields
     private Boolean mBkeepRunning;
     private ArrayList<String> mListeRequest;
     private Object mSyncObj;
     private Semaphore oRequestQueueMutex;
     private AutoResetEvent oAutoResentEvent;
     private IHttpRequestResponse mHttpRequestResponse;
+    //endregion
 
+    //region API
     public HttpRequestThread(IHttpRequestResponse Caller) {
         oRequestQueueMutex = new Semaphore(1);
         oAutoResentEvent = new AutoResetEvent(false);
@@ -38,6 +42,27 @@ public class HttpRequestThread extends Thread {
         }
     }
 
+    @Override
+    public void run() {
+            while (mBkeepRunning) {
+                try {
+                    oAutoResentEvent.waitOne();
+
+                    oRequestQueueMutex.acquire();
+                    String strUrl = mListeRequest.remove(0);
+                    oRequestQueueMutex.release();
+
+                    RetrieveHttpResponse(strUrl);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (ProtocolException e) {
+                    e.printStackTrace();
+                }
+            }
+    }
+    //endregion
+
+    //region Helpers
     private void RetrieveHttpResponse(String strUrl) throws ProtocolException {
         URL url = null;
         try {
@@ -67,23 +92,5 @@ public class HttpRequestThread extends Thread {
             e.printStackTrace();
         }
     }
-
-    @Override
-    public void run() {
-            while (mBkeepRunning) {
-                try {
-                    oAutoResentEvent.waitOne();
-
-                    oRequestQueueMutex.acquire();
-                    String strUrl = mListeRequest.remove(0);
-                    oRequestQueueMutex.release();
-
-                    RetrieveHttpResponse(strUrl);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (ProtocolException e) {
-                    e.printStackTrace();
-                }
-            }
-    }
+    //endregion
 }

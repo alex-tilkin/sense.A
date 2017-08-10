@@ -92,12 +92,12 @@ public class MainActivity extends
         mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
         mHttpRequest = new HttpRequestThread(this);
         mHttpRequest.start();
-//
-//        try {
-//            m_KalmanGPS = new KalmanGPS();
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
+
+        try {
+            m_KalmanGPS = new KalmanGPS();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         InitializeMarkersOverlay();
     }
@@ -119,13 +119,13 @@ public class MainActivity extends
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
 
-//        try {
-//            m_KalmanGPS.push(gPt.getLongitude(), gPt.getLatitude());
-//            //double[] coordinate = m_KalmanGPS.getPostion();
-//            //gPt = new GeoPoint(coordinate[0], coordinate[1]);
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
+        try {
+            m_KalmanGPS.push(gPt.getLongitude(), gPt.getLatitude());
+            double[] coordinate = m_KalmanGPS.getCoordinate();
+            gPt = new GeoPoint(coordinate[1], coordinate[0]);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         PostClosestIntersectionRequest(gPt);
     }
 
