@@ -55,7 +55,6 @@ public class MainActivity extends
     private com.google.android.gms.location.LocationListener listener;
     private long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
     private long FASTEST_INTERVAL = 2000; /* 2 sec */
-    private Location mLocation;
 
     private ItemizedOverlay<OverlayItem> mItemizedOverlayLocation;
     private ArrayList<OverlayItem> mOverlayItemArrayList;
@@ -63,12 +62,17 @@ public class MainActivity extends
     private ItemizedOverlay<OverlayItem> mItemizedOverlayNextIntersection;
     private ArrayList<OverlayItem> mOverlayItemNextIntersectionList;
 
+    private ExMyLocation mMyLocationOverlay;
+
     private MapView         mMapView;
     private MapController   mMapController;
 
     private HttpRequestThread mHttpRequest;
 
     private KalmanGPS m_KalmanGPS;
+
+    private GeoPoint mGeoPointCurrentLocation;
+    private GeoPoint mGeoPreviousLocation;
     //endregion
 
     @Override
@@ -113,12 +117,6 @@ public class MainActivity extends
                 location.getLongitude()
         );
 
-        if(bSetCenter)
-            mMapController.setCenter(gPt);
-
-        AddPointToOverlay(gPt, 0, R.drawable.pin);
-        mMapView.invalidate();
-
         try {
             m_KalmanGPS.push(gPt.getLongitude(), gPt.getLatitude());
             double[] coordinate = m_KalmanGPS.getCoordinate();
@@ -126,7 +124,16 @@ public class MainActivity extends
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        if(bSetCenter)
+            mMapController.setCenter(gPt);
+
+        AddPointToOverlay(gPt, 0, R.drawable.pin);
+        mMapView.invalidate();
+
         PostClosestIntersectionRequest(gPt);
+        mGeoPreviousLocation = mGeoPointCurrentLocation;
+        mGeoPointCurrentLocation = gPt;
     }
 
     @Override
@@ -138,9 +145,7 @@ public class MainActivity extends
         }
 
         startLocationUpdates();
-        mLocation = LocationServices.
-                FusedLocationApi.
-                getLastLocation(mGoogleApiClient);
+        onLocationChanged(LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient), true);
     }
 
     @Override
@@ -187,7 +192,9 @@ public class MainActivity extends
                         Double.parseDouble(((Element) e.item(0)).getElementsByTagName("lat").item(0).getTextContent()),
                         Double.parseDouble(((Element) e.item(0)).getElementsByTagName("lng").item(0).getTextContent())
                 );
+
                 AddPointToOverlay(gPt, 1, R.drawable.pininter);
+                onClosestIntersectionPointArrive(gPt);
             }
             mMapView.post(new Runnable() {
                 @Override
@@ -206,6 +213,31 @@ public class MainActivity extends
         }
     }
 
+    private void onClosestIntersectionPointArrive(GeoPoint gPtIntersection) {
+        if(mGeoPreviousLocation == mGeoPointCurrentLocation) {
+            Log.d("", "first point");
+            return;
+        }
+
+        int iDistance = mGeoPointCurrentLocation.distanceTo(gPtIntersection);
+        if(iDistance > 15) {
+            Log.d("", "Should be smaller than 10 minutes");
+            return;
+        }
+
+        boolean bDeltaLatitude =
+                (mGeoPointCurrentLocation.getLatitude() - gPtIntersection.getLatitude()) *
+                (mGeoPreviousLocation.getLatitude() - gPtIntersection.getLatitude()) < 0;
+        boolean bDeltaLongtitude =
+                (mGeoPointCurrentLocation.getLongitude() - gPtIntersection.getLongitude()) *
+                (mGeoPreviousLocation.getLongitude() - gPtIntersection.getLongitude()) < 0;
+
+        if(bDeltaLatitude || bDeltaLongtitude) {
+            mMyLocationOverlay.AddItem(gPtIntersection);
+            return;
+        }
+    }
+
     private void InitializeMarkersOverlay() {
         mOverlayItemArrayList = new ArrayList<>();
         mItemizedOverlayLocation = new ExtendedItemizedIconOverlay<OverlayItem>(this, mOverlayItemArrayList, null);
@@ -214,6 +246,10 @@ public class MainActivity extends
         mOverlayItemNextIntersectionList = new ArrayList<>();
         mItemizedOverlayNextIntersection = new ItemizedIconOverlay<>(this, mOverlayItemNextIntersectionList, null);
         mMapView.getOverlays().add(mItemizedOverlayNextIntersection);
+
+        //mOverlayMylocationList = new ArrayList<>();
+        mMyLocationOverlay = new ExMyLocation(mMapView.getContext(),/* mOverlayMylocationList,*/ mMapView);
+        mMapView.getOverlays().add(mMyLocationOverlay);
     }
 
     protected void startLocationUpdates() {
@@ -252,11 +288,6 @@ public class MainActivity extends
                 }
             }
         });
-//        if(mMapView.getOverlays().size() > 0) {
-//
-//            ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).removeAllItems();
-//            ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).addItem(overlayItem);
-//        }
     }
 
     private boolean CheckLocation() {
