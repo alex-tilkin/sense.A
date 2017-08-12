@@ -14,6 +14,7 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 
+import com.exampledemo.parsaniahardik.storage.FireBaseMgr;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
@@ -55,6 +56,7 @@ public class MainActivity extends
     private com.google.android.gms.location.LocationListener listener;
     private long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
     private long FASTEST_INTERVAL = 2000; /* 2 sec */
+    private Location mLocation;
 
     private ItemizedOverlay<OverlayItem> mItemizedOverlayLocation;
     private ArrayList<OverlayItem> mOverlayItemArrayList;
@@ -64,8 +66,8 @@ public class MainActivity extends
 
     private ExMyLocation mMyLocationOverlay;
 
-    private MapView         mMapView;
-    private MapController   mMapController;
+    private MapView mMapView;
+    private MapController mMapController;
 
     private HttpRequestThread mHttpRequest;
 
@@ -74,6 +76,8 @@ public class MainActivity extends
     private GeoPoint mGeoPointCurrentLocation;
     private GeoPoint mGeoPreviousLocation;
     private GeoPoint mGeoPointLastHandledIntersection;
+
+    private FireBaseMgr m_FireBaseMgr;
     //endregion
 
     @Override
@@ -97,7 +101,7 @@ public class MainActivity extends
         mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
         mHttpRequest = new HttpRequestThread(this);
         mHttpRequest.start();
-
+        m_FireBaseMgr = FireBaseMgr.getInstace();
         try {
             m_KalmanGPS = new KalmanGPS();
         } catch (Exception e) {
@@ -241,6 +245,7 @@ public class MainActivity extends
                 gPtIntersection.getLatitude() != mGeoPointLastHandledIntersection.getLatitude())) {
                 mMyLocationOverlay.AddItem(gPtIntersection);
                 mGeoPointLastHandledIntersection = gPtIntersection;
+                m_FireBaseMgr.sendIntersection(gPtIntersection);
             }
         }
     }
