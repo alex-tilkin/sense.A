@@ -10,7 +10,7 @@ public class KalmanGPS {
     private Matrix m_StateVector;
     private Matrix m_CorrectionVector;
     private Matrix m_MeasurementVector;
-    private int samplingThreshold = 40;
+    private int samplingThreshold = 50;
     private int sampleCnt = 0;
     //endregion
 
