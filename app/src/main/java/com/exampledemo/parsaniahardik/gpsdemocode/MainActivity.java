@@ -73,6 +73,7 @@ public class MainActivity extends
 
     private GeoPoint mGeoPointCurrentLocation;
     private GeoPoint mGeoPreviousLocation;
+    private GeoPoint mGeoPointLastHandledIntersection;
     //endregion
 
     @Override
@@ -232,9 +233,15 @@ public class MainActivity extends
                 (mGeoPointCurrentLocation.getLongitude() - gPtIntersection.getLongitude()) *
                 (mGeoPreviousLocation.getLongitude() - gPtIntersection.getLongitude()) < 0;
 
+        // there has been a change in one of the deltas
         if(bDeltaLatitude || bDeltaLongtitude) {
-            mMyLocationOverlay.AddItem(gPtIntersection);
-            return;
+            // have we handled this point previously
+            if((mGeoPointLastHandledIntersection == null) ||
+               (gPtIntersection.getLongitude() != mGeoPointLastHandledIntersection.getLongitude() &&
+                gPtIntersection.getLatitude() != mGeoPointLastHandledIntersection.getLatitude())) {
+                mMyLocationOverlay.AddItem(gPtIntersection);
+                mGeoPointLastHandledIntersection = gPtIntersection;
+            }
         }
     }
 
