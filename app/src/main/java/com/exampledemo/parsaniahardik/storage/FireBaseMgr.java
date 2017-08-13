@@ -28,7 +28,7 @@ public class FireBaseMgr {
 
         double latitude = geoPoint.getLatitude();
         double longitude = geoPoint.getLongitude();
-        String id = new StringBuilder(MessageFormat.format("{1}{0}", latitude, longitude)).toString();
+        String id = new StringBuilder(MessageFormat.format("{1,number,#.####},{0,number,#.####}", latitude, longitude)).toString();
         myRef.setValue(new HotZone(id, latitude, longitude, 100, Type.INTERSECTION), new DatabaseReference.CompletionListener() {
             @Override
             public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {

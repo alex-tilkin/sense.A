@@ -8,6 +8,9 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Message;
 import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
@@ -41,6 +44,10 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+interface IHttpRequestResponse {
+    public void OnHttpResponse(String strResponse);
+}
+
 public class MainActivity extends
         AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
@@ -56,7 +63,6 @@ public class MainActivity extends
     private com.google.android.gms.location.LocationListener listener;
     private long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
     private long FASTEST_INTERVAL = 2000; /* 2 sec */
-    private Location mLocation;
 
     private ItemizedOverlay<OverlayItem> mItemizedOverlayLocation;
     private ArrayList<OverlayItem> mOverlayItemArrayList;
@@ -70,6 +76,8 @@ public class MainActivity extends
     private MapController mMapController;
 
     private HttpRequestThread mHttpRequest;
+    private HandlerThread mHtDb;
+    private Handler mHandlerFireBase;
 
     private KalmanGPS m_KalmanGPS;
 
@@ -77,7 +85,6 @@ public class MainActivity extends
     private GeoPoint mGeoPreviousLocation;
     private GeoPoint mGeoPointLastHandledIntersection;
 
-    private FireBaseMgr m_FireBaseMgr;
     //endregion
 
     @Override
@@ -101,7 +108,9 @@ public class MainActivity extends
         mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
         mHttpRequest = new HttpRequestThread(this);
         mHttpRequest.start();
-        m_FireBaseMgr = FireBaseMgr.getInstace();
+
+        InitializeFireBaseThread();
+
         try {
             m_KalmanGPS = new KalmanGPS();
         } catch (Exception e) {
@@ -109,6 +118,23 @@ public class MainActivity extends
         }
 
         InitializeMarkersOverlay();
+    }
+
+    private void InitializeFireBaseThread() {
+        mHtDb = new HandlerThread("FireBaseThread");
+        mHtDb.start();
+
+        mHandlerFireBase = new Handler(mHtDb.getLooper()) {
+            @Override
+            public void handleMessage(Message msg) {
+                GeoPoint gPtIntersection = new GeoPoint(
+                        msg.getData().getDouble("latitude"),
+                        msg.getData().getDouble("longitude")
+                );
+
+                FireBaseMgr.getInstace().sendIntersection(gPtIntersection);
+            }
+        };
     }
 
     @Override
@@ -244,9 +270,19 @@ public class MainActivity extends
                 gPtIntersection.getLatitude() != mGeoPointLastHandledIntersection.getLatitude())) {
                 mMyLocationOverlay.AddItem(gPtIntersection);
                 mGeoPointLastHandledIntersection = gPtIntersection;
-                m_FireBaseMgr.sendIntersection(gPtIntersection);
+                addIntersectionContentToFireBaseDb(gPtIntersection);
             }
         }
+    }
+
+    private void addIntersectionContentToFireBaseDb(GeoPoint gPtIntersection) {
+        Bundle bundleContet = new Bundle();
+        bundleContet.putDouble("longitude", gPtIntersection.getLongitude());
+        bundleContet.putDouble("latitude", gPtIntersection.getLatitude());
+
+        Message msgFireBase = Message.obtain(mHandlerFireBase);
+        msgFireBase.setData(bundleContet);
+        mHandlerFireBase.sendMessage(msgFireBase);
     }
 
     private void InitializeMarkersOverlay() {
@@ -285,8 +321,6 @@ public class MainActivity extends
 
     private void AddPointToOverlay(final GeoPoint gPt, final int index, int iDrawable) {
         final OverlayItem overlayItem = new OverlayItem("", "", gPt);
-        //Drawable markerDrawable = ContextCompat.getDrawable(this, iDrawable);
-        //overlayItem.setMarker(markerDrawable);
 
         runOnUiThread(new Runnable() {
             @Override
