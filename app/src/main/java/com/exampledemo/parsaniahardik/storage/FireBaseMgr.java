@@ -1,11 +1,17 @@
 package com.exampledemo.parsaniahardik.storage;
 
+import android.util.Log;
+
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 
 import org.osmdroid.util.GeoPoint;
 
+import java.text.MessageFormat;
+
 public class FireBaseMgr {
+    private static final String TAG = FireBaseMgr.class.getSimpleName();
 
     //region Fields
     private FirebaseDatabase m_Database = null;
@@ -18,13 +24,17 @@ public class FireBaseMgr {
     }
 
     public void sendIntersection(GeoPoint geoPoint){
-        //mDatabase.child("intersections");
-    }
+        DatabaseReference myRef = m_Database.getReference(Keys.HOT_ZONES);
 
-    public void sendMsg(){
-        DatabaseReference myRef = m_Database.getReference("message");
-
-        myRef.setValue("Hello, World!");
+        double latitude = geoPoint.getLatitude();
+        double longitude = geoPoint.getLongitude();
+        String id = new StringBuilder(MessageFormat.format("{1}{0}", latitude, longitude)).toString();
+        myRef.setValue(new HotZone(id, latitude, longitude, 100, Type.INTERSECTION), new DatabaseReference.CompletionListener() {
+            @Override
+            public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+                Log.d(TAG, "onComplete: " + databaseError);
+            }
+        });
     }
     //endregion
 
@@ -32,5 +42,15 @@ public class FireBaseMgr {
     private FireBaseMgr() {
         m_Database = FirebaseDatabase.getInstance();
     }
+
+    private class Keys {
+        public final static String HOT_ZONES = "hotZones";
+    }
+
+    private class Type {
+        private final static String INTERSECTION = "intersection";
+    }
+
+
     //endregion
 }

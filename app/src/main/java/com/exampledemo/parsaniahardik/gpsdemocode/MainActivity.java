@@ -150,7 +150,6 @@ public class MainActivity extends
         }
 
         startLocationUpdates();
-        onLocationChanged(LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient), true);
     }
 
     @Override
