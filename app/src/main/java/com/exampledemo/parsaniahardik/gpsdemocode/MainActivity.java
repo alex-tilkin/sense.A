@@ -30,30 +30,14 @@ import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.ItemizedIconOverlay;
 import org.osmdroid.views.overlay.ItemizedOverlay;
 import org.osmdroid.views.overlay.OverlayItem;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
 
-import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-
-interface IHttpRequestResponse {
-    public void OnHttpResponse(String strResponse);
-}
 
 public class MainActivity extends
         AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
-        com.google.android.gms.location.LocationListener,
-        IHttpRequestResponse
+        com.google.android.gms.location.LocationListener
 {
     //region Fields
     private static final String TAG = "MainActivity";
@@ -67,24 +51,17 @@ public class MainActivity extends
     private ItemizedOverlay<OverlayItem> mItemizedOverlayLocation;
     private ArrayList<OverlayItem> mOverlayItemArrayList;
 
-    private ItemizedOverlay<OverlayItem> mItemizedOverlayNextIntersection;
-    private ArrayList<OverlayItem> mOverlayItemNextIntersectionList;
-
     private ExMyLocation mMyLocationOverlay;
 
     private MapView mMapView;
     private MapController mMapController;
 
-    private HttpRequestThread mHttpRequest;
     private HandlerThread mHtDb;
     private Handler mHandlerFireBase;
 
     private KalmanGPS m_KalmanGPS;
 
     private GeoPoint mGeoPointCurrentLocation;
-    private GeoPoint mGeoPreviousLocation;
-    private GeoPoint mGeoPointLastHandledIntersection;
-
     //endregion
 
     @Override
@@ -106,8 +83,6 @@ public class MainActivity extends
                 .addApi(LocationServices.API).build();
 
         mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
-        mHttpRequest = new HttpRequestThread(this);
-        mHttpRequest.start();
 
         InitializeFireBaseThread();
 
@@ -162,8 +137,6 @@ public class MainActivity extends
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
 
-        PostClosestIntersectionRequest(gPt);
-        mGeoPreviousLocation = mGeoPointCurrentLocation;
         mGeoPointCurrentLocation = gPt;
     }
 
@@ -205,76 +178,6 @@ public class MainActivity extends
         }
     }
 
-    @Override
-    public void OnHttpResponse(String strResponse) {
-        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-        Document doc = null;
-
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            doc =  builder.parse(new InputSource(new StringReader(strResponse)));
-            NodeList e = doc.getElementsByTagName("intersection");
-            if (((Element)e.item(0)).getElementsByTagName("lat") != null &&
-                ((Element)e.item(0)).getElementsByTagName("lng") != null) {
-
-                GeoPoint gPt = new GeoPoint(
-                        Double.parseDouble(((Element) e.item(0)).getElementsByTagName("lat").item(0).getTextContent()),
-                        Double.parseDouble(((Element) e.item(0)).getElementsByTagName("lng").item(0).getTextContent())
-                );
-
-                AddPointToOverlay(gPt, 1, R.drawable.pininter);
-                onClosestIntersectionPointArrive(gPt);
-            }
-            mMapView.post(new Runnable() {
-                @Override
-                public void run() {
-                    mMapView.invalidate();
-                }
-            });
-        } catch (SAXException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ParserConfigurationException e) {
-            e.printStackTrace();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void onClosestIntersectionPointArrive(GeoPoint gPtIntersection) {
-        if(mGeoPreviousLocation == mGeoPointCurrentLocation) {
-            Log.d("", "first point");
-            return;
-        }
-
-        int iDistance = mGeoPointCurrentLocation.distanceTo(gPtIntersection);
-        if(iDistance > 15) {
-            Log.d("", "Should be smaller than 10 minutes");
-            return;
-        }
-
-        boolean bDeltaLatitude =
-                (mGeoPointCurrentLocation.getLatitude() - gPtIntersection.getLatitude()) *
-                (mGeoPreviousLocation.getLatitude() - gPtIntersection.getLatitude()) < 0;
-        boolean bDeltaLongtitude =
-                (mGeoPointCurrentLocation.getLongitude() - gPtIntersection.getLongitude()) *
-                (mGeoPreviousLocation.getLongitude() - gPtIntersection.getLongitude()) < 0;
-
-        // there has been a change in one of the deltas
-        if(bDeltaLatitude || bDeltaLongtitude) {
-            // have we handled this point previously
-            if((mGeoPointLastHandledIntersection == null) ||
-               (gPtIntersection.getLongitude() != mGeoPointLastHandledIntersection.getLongitude() &&
-                gPtIntersection.getLatitude() != mGeoPointLastHandledIntersection.getLatitude())) {
-                mMyLocationOverlay.AddItem(gPtIntersection);
-                mGeoPointLastHandledIntersection = gPtIntersection;
-                addIntersectionContentToFireBaseDb(gPtIntersection);
-            }
-        }
-    }
-
     private void addIntersectionContentToFireBaseDb(GeoPoint gPtIntersection) {
         Bundle bundleContet = new Bundle();
         bundleContet.putDouble("longitude", gPtIntersection.getLongitude());
@@ -290,12 +193,7 @@ public class MainActivity extends
         mItemizedOverlayLocation = new ExtendedItemizedIconOverlay<OverlayItem>(this, mOverlayItemArrayList, null);
         mMapView.getOverlays().add(mItemizedOverlayLocation);
 
-        mOverlayItemNextIntersectionList = new ArrayList<>();
-        mItemizedOverlayNextIntersection = new ItemizedIconOverlay<>(this, mOverlayItemNextIntersectionList, null);
-        mMapView.getOverlays().add(mItemizedOverlayNextIntersection);
-
-        //mOverlayMylocationList = new ArrayList<>();
-        mMyLocationOverlay = new ExMyLocation(mMapView.getContext(),/* mOverlayMylocationList,*/ mMapView);
+        mMyLocationOverlay = new ExMyLocation(mMapView.getContext(), mMapView);
         mMapView.getOverlays().add(mMyLocationOverlay);
     }
 
@@ -309,14 +207,6 @@ public class MainActivity extends
         LocationServices.
                 FusedLocationApi
                 .requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-    }
-
-    private void PostClosestIntersectionRequest(GeoPoint gPt) {
-        String strUrl = "http://api.geonames.org/findNearestIntersectionOSM?lat=%s&lng=%s&username=krinitsa";
-        strUrl = String.format(strUrl,
-                Double.toString(gPt.getLatitude()), // Should be reveredd!!! not sure why!!
-                Double.toString(gPt.getLongitude()));
-        mHttpRequest.AddRequest(strUrl);
     }
 
     private void AddPointToOverlay(final GeoPoint gPt, final int index, int iDrawable) {
