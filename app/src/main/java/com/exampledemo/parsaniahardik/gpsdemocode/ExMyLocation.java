@@ -62,7 +62,7 @@ class ExMyLocation extends MyLocationNewOverlay {
         l.setLatitude(((double)loc.getLatitudeE6())/1000000);
         l.setLongitude(((double)loc.getLongitudeE6())/1000000);
 
-        mSender.onLocationChanged(l, false);
+        //mSender.onLocationChanged(l, false);
         return true;
     }
 

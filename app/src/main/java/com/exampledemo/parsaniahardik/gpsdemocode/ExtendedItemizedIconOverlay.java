@@ -42,7 +42,7 @@ public class ExtendedItemizedIconOverlay <Item extends OverlayItem> extends Item
         l.setLatitude(((double)loc.getLatitudeE6())/1000000);
         l.setLongitude(((double)loc.getLongitudeE6())/1000000);
 
-        oSender.onLocationChanged(l, false);
+        //oSender.onLocationChanged(l, false);
         return true;
     }
 }

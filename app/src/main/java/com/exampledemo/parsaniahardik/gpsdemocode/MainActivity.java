@@ -1,17 +1,12 @@
 package com.exampledemo.parsaniahardik.gpsdemocode;
 
-import android.Manifest;
-import android.content.Context;
 import android.content.DialogInterface;
-import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.location.Location;
-import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.Message;
-import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -20,7 +15,6 @@ import android.util.Log;
 import com.exampledemo.parsaniahardik.storage.FireBaseMgr;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
@@ -44,17 +38,14 @@ enum eType {
 public class MainActivity extends
         AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener,
-        com.google.android.gms.location.LocationListener
+        GoogleApiClient.OnConnectionFailedListener
 {
     //region Fields
     private static final String TAG = "MainActivity";
     private GoogleApiClient mGoogleApiClient;
-    private LocationManager mLocationManager;
-    private LocationRequest mLocationRequest;
-    private com.google.android.gms.location.LocationListener listener;
-    private long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
-    private long FASTEST_INTERVAL = 2000; /* 2 sec */
+
+    LocationModule mLocationModuleThread;
+    Handler mHandlerLocation;
 
     private ExMyLocation mMyLocationOverlay;
 
@@ -65,8 +56,6 @@ public class MainActivity extends
     private Handler mHttpHandler;
     private HandlerThread handlerThreadFireBase;
     private Handler mHandlerFireBase;
-
-    private KalmanGPS m_KalmanGPS;
 
     //endregion
 
@@ -103,21 +92,19 @@ public class MainActivity extends
         initializeMap();
         initializeHttpThread();
         initializeFireBaseThread();
-        initializeKalman();
         initializeMarkersOverlay();
         initializeUser(eMoveable);
-        initializeLocation();
+        initializeLocationManager();
+    }
+
+    private void initializeLocationManager() {
+        mLocationModuleThread = new LocationModule("LocationModuleThread", this);
+        mLocationModuleThread.start();
+
+        mHandlerLocation = new Handler(mLocationModuleThread.getLooper());
     }
 
     private void initializeUser(eType eMoveable) {
-    }
-
-    private void initializeKalman() {
-        try {
-            m_KalmanGPS = new KalmanGPS();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     private void initializeMap() {
@@ -161,33 +148,6 @@ public class MainActivity extends
         };
     }
 
-    @Override
-    public void onLocationChanged(Location location) {
-        onLocationChanged(location, true);
-    }
-
-    public void onLocationChanged(Location location, boolean bSetCenter) {
-        GeoPoint gPt = new GeoPoint(
-                location.getLatitude(),
-                location.getLongitude()
-        );
-
-        try {
-            m_KalmanGPS.push(gPt.getLongitude(), gPt.getLatitude());
-            double[] coordinate = m_KalmanGPS.getCoordinate();
-            gPt = new GeoPoint(coordinate[1], coordinate[0]);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        if(bSetCenter)
-            mMapController.setCenter(gPt);
-
-        PostOnNewLocationArrive(gPt);
-        AddPointToOverlay(gPt, 0, R.drawable.pin);
-        mMapView.invalidate();
-    }
-
     private void PostOnNewLocationArrive(GeoPoint gPt) {
         final String strUrl = String.format(
                 "http://nominatim.openstreetmap.org/reverse?format=xml&lat=%s&lon=%s&zoom=18&email=krinitsa@gmail.com",
@@ -228,15 +188,6 @@ public class MainActivity extends
     }
 
     @Override
-    public void onConnected(Bundle bundle) {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-        {
-            return;
-        }
-    }
-
-    @Override
     public void onConnectionSuspended(int i) {
         Log.i(TAG, "Connection Suspended");
         mGoogleApiClient.connect();
@@ -266,6 +217,15 @@ public class MainActivity extends
         }
     }
 
+    @Override
+    public void onConnected(Bundle bundle) {
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
+        {
+            return;
+        }
+    }
+
     private void addIntersectionContentToFireBaseDb(GeoPoint gPtIntersection) {
         Bundle bundleContet = new Bundle();
         bundleContet.putDouble("longitude", gPtIntersection.getLongitude());
@@ -281,69 +241,20 @@ public class MainActivity extends
         mMapView.getOverlays().add(mMyLocationOverlay);
     }
 
-    private boolean isLocationEnabled() {
-        mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        return mLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-                mLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
-    }
-
-    protected void initializeLocation() {
-        mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
-        if(!isLocationEnabled()) {
-            return;
-        }
-
-        // Create the location request
-        mLocationRequest = LocationRequest.create()
-                .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                .setInterval(UPDATE_INTERVAL)
-                .setFastestInterval(FASTEST_INTERVAL);
-
-        LocationServices.
-                FusedLocationApi
-                .requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
-    }
-
     private void AddPointToOverlay(final GeoPoint gPt, final int index, int iDrawable) {
         final OverlayItem overlayItem = new OverlayItem("", "", gPt);
-
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                //method which was problematic and was casing a problem
-                if(mMapView.getOverlays().size() > 0) {
-                    ((ExMyLocation)mMapView.getOverlays().get(index)).AddItem(gPt);
-                }
-            }
-        });
+        if (Looper.myLooper() == Looper.getMainLooper() && mMapView.getOverlays().size() > 0) {
+            ((ExMyLocation) mMapView.getOverlays().get(index)).AddItem(gPt);
+        }
     }
 
-    private boolean CheckLocation() {
-        if(!isLocationEnabled())
-            showAlert();
-        return isLocationEnabled();
+    public GoogleApiClient getGoogleApi() {
+        return mGoogleApiClient;
     }
 
-    private void showAlert() {
-        final AlertDialog.Builder dialog = new AlertDialog.Builder(this);
-        dialog.setTitle("Enable Location")
-                .setMessage("Your Locations Settings is set to 'Off'.\nPlease Enable Location to " +
-                        "use this app")
-                .setPositiveButton("Location Settings", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface paramDialogInterface, int paramInt) {
-
-                        Intent myIntent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                        startActivity(myIntent);
-                    }
-                })
-                .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface paramDialogInterface, int paramInt) {
-
-                    }
-                });
-
-        dialog.show();
+    public void updateActivityWithNewPoint(GeoPoint gPt) {
+        mMapController.setCenter(gPt);
+        AddPointToOverlay(gPt, 0, R.drawable.pin);
+        mMapView.invalidate();
     }
 }
