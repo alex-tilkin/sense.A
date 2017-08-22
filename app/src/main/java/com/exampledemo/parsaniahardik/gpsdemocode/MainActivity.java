@@ -27,11 +27,19 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapController;
 import org.osmdroid.views.MapView;
-import org.osmdroid.views.overlay.ItemizedIconOverlay;
-import org.osmdroid.views.overlay.ItemizedOverlay;
 import org.osmdroid.views.overlay.OverlayItem;
 
-import java.util.ArrayList;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+
+enum eType {
+    ePedestrian,
+    eCar
+}
 
 public class MainActivity extends
         AppCompatActivity implements
@@ -48,58 +56,99 @@ public class MainActivity extends
     private long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
     private long FASTEST_INTERVAL = 2000; /* 2 sec */
 
-    private ItemizedOverlay<OverlayItem> mItemizedOverlayLocation;
-    private ArrayList<OverlayItem> mOverlayItemArrayList;
-
     private ExMyLocation mMyLocationOverlay;
 
     private MapView mMapView;
     private MapController mMapController;
 
-    private HandlerThread mHtDb;
+    private HandlerThread mHttpThread;
+    private Handler mHttpHandler;
+    private HandlerThread handlerThreadFireBase;
     private Handler mHandlerFireBase;
 
     private KalmanGPS m_KalmanGPS;
 
-    private GeoPoint mGeoPointCurrentLocation;
     //endregion
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_main);
-        if(!CheckLocation())
-            return;
 
-        mMapView = (MapView) findViewById(R.id.mapview);
-        mMapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE);
-        mMapView.setBuiltInZoomControls(true);
-        mMapController = (MapController) mMapView.getController();
-        mMapController.setZoom(100);
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .addApi(LocationServices.API).build();
+    }
 
-        mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
+    private void decideUserType() {
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+        dialog.setCancelable(false)
+              .setPositiveButton("Car", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface paramDialogInterface, int paramInt) {
+                initializeAppContent(eType.eCar);
+            }
+        })
+        .setNegativeButton("Pedestrian", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface paramDialogInterface, int paramInt) {
+                initializeAppContent(eType.ePedestrian);
+            }
+        });
+        dialog.show();
+    }
 
-        InitializeFireBaseThread();
+    private void initializeAppContent(eType eMoveable) {
+        initializeMap();
+        initializeHttpThread();
+        initializeFireBaseThread();
+        initializeKalman();
+        initializeMarkersOverlay();
+        initializeUser(eMoveable);
+        initializeLocation();
+    }
 
+    private void initializeUser(eType eMoveable) {
+    }
+
+    private void initializeKalman() {
         try {
             m_KalmanGPS = new KalmanGPS();
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-        InitializeMarkersOverlay();
     }
 
-    private void InitializeFireBaseThread() {
-        mHtDb = new HandlerThread("FireBaseThread");
-        mHtDb.start();
+    private void initializeMap() {
+        mMapView = (MapView) findViewById(R.id.mapview);
+        mMapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE);
+        mMapView.setBuiltInZoomControls(true);
+        mMapController = (MapController) mMapView.getController();
+        mMapController.setZoom(100);
+    }
 
-        mHandlerFireBase = new Handler(mHtDb.getLooper()) {
+    private void initializeHttpThread() {
+        mHttpThread = new HandlerThread("HttpThread");
+        mHttpThread.start();
+
+        mHttpHandler = new Handler(mHttpThread.getLooper()) {
+            @Override
+            public void handleMessage(Message msg) {
+                int i;
+                i = 1;
+                int v = 0;
+                v = 1;
+            }
+        };
+
+    }
+
+    private void initializeFireBaseThread() {
+        handlerThreadFireBase = new HandlerThread("FireBaseThread");
+        handlerThreadFireBase.start();
+
+        mHandlerFireBase = new Handler(handlerThreadFireBase.getLooper()) {
             @Override
             public void handleMessage(Message msg) {
                 GeoPoint gPtIntersection = new GeoPoint(
@@ -134,10 +183,48 @@ public class MainActivity extends
         if(bSetCenter)
             mMapController.setCenter(gPt);
 
+        PostOnNewLocationArrive(gPt);
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
+    }
 
-        mGeoPointCurrentLocation = gPt;
+    private void PostOnNewLocationArrive(GeoPoint gPt) {
+        final String strUrl = String.format(
+                "http://nominatim.openstreetmap.org/reverse?format=xml&lat=%s&lon=%s&zoom=18&email=krinitsa@gmail.com",
+                Double.toString(gPt.getLatitude()),
+                Double.toString(gPt.getLongitude()));
+        
+        mHttpHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                URL url = null;
+                try {
+                    url = new URL(strUrl);
+                    HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                    con.setRequestMethod("GET");
+                    con.setRequestProperty("User-Agent", "Mozilla/5.0");
+                    con.setDoInput(true);
+                    con.setDoOutput(true);
+
+                   int status = con.getResponseCode();
+                    BufferedReader in = new BufferedReader(
+                            new InputStreamReader(con.getInputStream()));
+
+                    String inputLine;
+                    StringBuffer content = new StringBuffer();
+                    while ((inputLine = in.readLine()) != null) {
+                        content.append(inputLine);
+                    }
+
+                    in.close();
+                    con.disconnect();
+                } catch (MalformedURLException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
     }
 
     @Override
@@ -147,8 +234,6 @@ public class MainActivity extends
         {
             return;
         }
-
-        startLocationUpdates();
     }
 
     @Override
@@ -165,9 +250,12 @@ public class MainActivity extends
     @Override
     protected void onStart() {
         super.onStart();
+
         if (mGoogleApiClient != null) {
             mGoogleApiClient.connect();
         }
+
+        decideUserType();
     }
 
     @Override
@@ -188,16 +276,23 @@ public class MainActivity extends
         mHandlerFireBase.sendMessage(msgFireBase);
     }
 
-    private void InitializeMarkersOverlay() {
-        mOverlayItemArrayList = new ArrayList<>();
-        mItemizedOverlayLocation = new ExtendedItemizedIconOverlay<OverlayItem>(this, mOverlayItemArrayList, null);
-        mMapView.getOverlays().add(mItemizedOverlayLocation);
-
-        mMyLocationOverlay = new ExMyLocation(mMapView.getContext(), mMapView);
+    private void initializeMarkersOverlay() {
+        mMyLocationOverlay = new ExMyLocation(this, mMapView.getContext(), mMapView);
         mMapView.getOverlays().add(mMyLocationOverlay);
     }
 
-    protected void startLocationUpdates() {
+    private boolean isLocationEnabled() {
+        mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        return mLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                mLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+    }
+
+    protected void initializeLocation() {
+        mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
+        if(!isLocationEnabled()) {
+            return;
+        }
+
         // Create the location request
         mLocationRequest = LocationRequest.create()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
@@ -217,9 +312,7 @@ public class MainActivity extends
             public void run() {
                 //method which was problematic and was casing a problem
                 if(mMapView.getOverlays().size() > 0) {
-
-                    ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).removeAllItems();
-                    ((ItemizedIconOverlay<OverlayItem>)mMapView.getOverlays().get(index)).addItem(overlayItem);
+                    ((ExMyLocation)mMapView.getOverlays().get(index)).AddItem(gPt);
                 }
             }
         });
@@ -250,12 +343,7 @@ public class MainActivity extends
 
                     }
                 });
-        dialog.show();
-    }
 
-    private boolean isLocationEnabled() {
-        mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        return mLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-                mLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        dialog.show();
     }
 }

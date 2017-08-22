@@ -5,11 +5,11 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
+import android.location.Location;
+import android.view.MotionEvent;
 
-import org.osmdroid.ResourceProxy;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
-import org.osmdroid.views.overlay.mylocation.IMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
 import java.util.ArrayList;
@@ -21,11 +21,11 @@ import java.util.ArrayList;
 class ExMyLocation extends MyLocationNewOverlay {
 
     private ArrayList<GeoPoint> mList;
+    private MainActivity mSender;
 
     @Override
     public void draw(Canvas canvas, MapView mapView, boolean shadow) {
-        //super.draw(canvas, mapView, shadow);
-        int radius = 10; // in meters
+        int radius = 3; // in meters
         MapView.Projection projection = mapView.getProjection();
         float actualRadius = projection.metersToEquatorPixels(radius) *
                 mapView.getResources().getDisplayMetrics().density;
@@ -44,13 +44,32 @@ class ExMyLocation extends MyLocationNewOverlay {
         }
     }
 
-    public ExMyLocation(Context ctx/*, ArrayList<OverlayItem> mOverlayMylocationList*/, MapView mapView) {
-        super(ctx, mapView);
-        mList = new ArrayList<GeoPoint>();
+    @Override
+    public boolean onLongPress(MotionEvent e, MapView pMapView) {
+        return true;
     }
 
-    public ExMyLocation(Context ctx, MapView mapView, ResourceProxy pResourceProxy) {
-        super((IMyLocationProvider) ctx, mapView, pResourceProxy);
+    @Override
+    public boolean onSingleTapConfirmed(MotionEvent event, MapView map) {
+        MapView.Projection proj = map.getProjection();
+
+        GeoPoint loc = (GeoPoint)proj.fromPixels(
+                (int)event.getX(),
+                (int)event.getY()
+        );
+
+        Location l = new Location("Manual");
+        l.setLatitude(((double)loc.getLatitudeE6())/1000000);
+        l.setLongitude(((double)loc.getLongitudeE6())/1000000);
+
+        mSender.onLocationChanged(l, false);
+        return true;
+    }
+
+    public ExMyLocation(MainActivity oSender, Context ctx, MapView mapView) {
+        super(ctx, mapView);
+        mSender = oSender;
+        mList = new ArrayList<GeoPoint>();
     }
 
     public void AddItem(final GeoPoint gPt) {
