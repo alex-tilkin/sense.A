@@ -47,7 +47,7 @@ public class LocationModule extends HandlerThread
                 .setInterval(UPDATE_INTERVAL)
                 .setFastestInterval(FASTEST_INTERVAL);
 
-        // fix this getter
+        // #igal fix this getter
         LocationServices.FusedLocationApi.requestLocationUpdates(mActivity.getGoogleApi(), mLocationRequest, this);
     }
 
@@ -61,10 +61,6 @@ public class LocationModule extends HandlerThread
 
     @Override
     public void onLocationChanged(Location location) {
-        onLocationChanged(location, true);
-    }
-
-    public void onLocationChanged(Location location, boolean bSetCenter) {
         GeoPoint gPt = new GeoPoint(
                 location.getLatitude(),
                 location.getLongitude()
