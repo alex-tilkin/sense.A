@@ -2,8 +2,14 @@ package com.exampledemo.parsaniahardik.gpsdemocode;
 
 import android.content.Context;
 import android.location.Location;
+import android.os.Bundle;
+import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Message;
+import android.support.annotation.Nullable;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 
@@ -14,41 +20,47 @@ import org.osmdroid.util.GeoPoint;
  */
 
 public class LocationModule extends HandlerThread
-        implements com.google.android.gms.location.LocationListener {
+        implements com.google.android.gms.location.LocationListener,
+        GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener{
 
-    private android.location.LocationManager mLocationManager;
+    private final GoogleApiClient mGoogleApiClient;
+    private final Handler mUiHandler;
     private LocationRequest mLocationRequest;
     private com.google.android.gms.location.LocationListener listener;
-    private long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
-    private long FASTEST_INTERVAL = 2000; /* 2 sec */
+    private final long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
+    private final long FASTEST_INTERVAL = 2000; /* 2 sec */
 
-    private MainActivity mActivity;
     private KalmanGPS m_KalmanGPS;
 
-    public LocationModule(String name, MainActivity oSender) {
+    public LocationModule(String name, Context context, Handler handlerUi) {
         super(name);
-        mActivity = oSender;
 
-        initializeKalman();
-        initializeLocation();
+        mUiHandler = handlerUi;
+        mGoogleApiClient = new GoogleApiClient.Builder(context)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API).build();
+    }
 
+    @Override
+    public void onLooperPrepared() {
+        super.onLooperPrepared();
+        mGoogleApiClient.connect();
     }
 
     protected void initializeLocation() {
-        mLocationManager = (android.location.LocationManager)mActivity.getSystemService(Context.LOCATION_SERVICE);
-        if(!mLocationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) &&
-           !mLocationManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
-            return;
-        }
-
-        // Create the location request
         mLocationRequest = LocationRequest.create()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(UPDATE_INTERVAL)
                 .setFastestInterval(FASTEST_INTERVAL);
 
-        // #igal fix this getter
-        LocationServices.FusedLocationApi.requestLocationUpdates(mActivity.getGoogleApi(), mLocationRequest, this);
+        LocationServices
+                .FusedLocationApi
+                .requestLocationUpdates(
+                        mGoogleApiClient,
+                        mLocationRequest,
+                        this);
     }
 
     private void initializeKalman() {
@@ -74,17 +86,31 @@ public class LocationModule extends HandlerThread
             e.printStackTrace();
         }
 
-        mActivity.runOnUiThread(new Runnable() {
-            private GeoPoint mGpt;
-            public Runnable init(GeoPoint gPt) {
-                mGpt = gPt;
-                return this;
-            }
+        Bundle bundleContet = new Bundle();
+        bundleContet.putDouble("longitude", location.getLongitude());
+        bundleContet.putDouble("latitude", location.getLatitude());
 
-            @Override
-            public void run() {
-                mActivity.updateActivityWithNewPoint(mGpt);
-            }
-        }.init(gPt));
+        Message msg = mUiHandler.obtainMessage();
+        msg.what = ConstMessages.MSG_NEW_GPS_POINT;
+        msg.setData(bundleContet);
+
+        mUiHandler.sendMessage(msg);
     }
+
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        initializeLocation();
+        initializeKalman();
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+        mGoogleApiClient.connect();
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+
+    }
+
 }

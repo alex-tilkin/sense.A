@@ -2,6 +2,7 @@ package com.exampledemo.parsaniahardik.gpsdemocode;
 
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -33,6 +34,10 @@ import java.net.URL;
 enum eType {
     ePedestrian,
     eCar
+};
+
+class ConstMessages {
+    public static final int MSG_NEW_GPS_POINT = 1;
 }
 
 public class MainActivity extends
@@ -43,7 +48,7 @@ public class MainActivity extends
     //region Fields
     private static final String TAG = "MainActivity";
     private GoogleApiClient mGoogleApiClient;
-
+    Handler mHandlerUi;
     LocationModule mLocationModuleThread;
     Handler mHandlerLocation;
 
@@ -68,6 +73,24 @@ public class MainActivity extends
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .addApi(LocationServices.API).build();
+
+        mHandlerUi = new Handler() {
+            @Override
+            public void handleMessage(Message msg){
+                onMessageArrive(msg);
+            }
+        };
+    }
+
+    private void onMessageArrive(Message msg) {
+        switch (msg.what){
+            case ConstMessages.MSG_NEW_GPS_POINT:
+                updateActivityWithNewPoint(new GeoPoint(
+                        msg.getData().getDouble("latitude"),
+                        msg.getData().getDouble("longitude")
+                ));
+                break;
+        }
     }
 
     private void decideUserType() {
@@ -98,7 +121,13 @@ public class MainActivity extends
     }
 
     private void initializeLocationManager() {
-        mLocationModuleThread = new LocationModule("LocationModuleThread", this);
+        LocationManager locManager = (LocationManager)getSystemService(LOCATION_SERVICE);
+        if(!locManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) &&
+           !locManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
+            return;
+        }
+
+        mLocationModuleThread = new LocationModule("LocationModuleThread", this, mHandlerUi);
         mLocationModuleThread.start();
 
         mHandlerLocation = new Handler(mLocationModuleThread.getLooper());
