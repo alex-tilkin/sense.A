@@ -13,10 +13,10 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 
-import com.exampledemo.parsaniahardik.storage.FireBaseMgr;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.firebase.iid.FirebaseInstanceId;
 
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
@@ -38,19 +38,21 @@ enum eType {
 
 class ConstMessages {
     public static final int MSG_NEW_GPS_POINT = 1;
+    public static final int MSG_SAVE_NEW_RECORD = MSG_NEW_GPS_POINT + 1;
+    public static final int MSG_DB_HANDLER_CREATED = MSG_SAVE_NEW_RECORD + 1;
+    public static final int MSG_DB_NEW_USER_CONNECTED = MSG_DB_HANDLER_CREATED + 1;
+    public static final int MSG_NEW_HOT_ZONE_POINT_ARRIVED = MSG_DB_NEW_USER_CONNECTED + 1;
 }
 
 public class MainActivity extends
         AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener
-{
+        GoogleApiClient.OnConnectionFailedListener {
     //region Fields
     private static final String TAG = "MainActivity";
     private GoogleApiClient mGoogleApiClient;
-    Handler mHandlerUi;
+    private Handler mHandlerUi;
     LocationModule mLocationModuleThread;
-    Handler mHandlerLocation;
 
     private ExMyLocation mMyLocationOverlay;
 
@@ -59,8 +61,10 @@ public class MainActivity extends
 
     private HandlerThread mHttpThread;
     private Handler mHttpHandler;
-    private HandlerThread handlerThreadFireBase;
+    private DatabaseManager mHandlerThreadFireBase;
     private Handler mHandlerFireBase;
+    private eType meUser;
+    private String mstrUid;
 
     //endregion
 
@@ -76,64 +80,95 @@ public class MainActivity extends
 
         mHandlerUi = new Handler() {
             @Override
-            public void handleMessage(Message msg){
+            public void handleMessage(Message msg) {
                 onMessageArrive(msg);
             }
         };
     }
 
     private void onMessageArrive(Message msg) {
-        switch (msg.what){
+        switch (msg.what) {
             case ConstMessages.MSG_NEW_GPS_POINT:
-                updateActivityWithNewPoint(new GeoPoint(
-                        msg.getData().getDouble("latitude"),
-                        msg.getData().getDouble("longitude")
-                ));
+                updateActivityWithNewPoint(
+                        (GeoPoint) msg.obj,
+                        msg.arg1 == 1);
+                break;
+            case ConstMessages.MSG_DB_HANDLER_CREATED:
+                mHandlerFireBase = (Handler) msg.obj;
+                notifyConnection("koko", mstrUid, meUser.name());
+                break;
+            case ConstMessages.MSG_DB_NEW_USER_CONNECTED:
+                onUserConnected((UserLoggedInNotification.UserLoggedInInfo)msg.obj);
                 break;
         }
+    }
+
+    private void onUserConnected(UserLoggedInNotification.UserLoggedInInfo userUpdateInfo) {
+        if(userUpdateInfo.mstrId == mstrUid)
+            return;
+
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+        dialog.setTitle(userUpdateInfo.mstrName);
+        dialog.show();
     }
 
     private void decideUserType() {
         AlertDialog.Builder dialog = new AlertDialog.Builder(this);
         dialog.setCancelable(false)
-              .setPositiveButton("Car", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface paramDialogInterface, int paramInt) {
-                initializeAppContent(eType.eCar);
-            }
-        })
-        .setNegativeButton("Pedestrian", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface paramDialogInterface, int paramInt) {
-                initializeAppContent(eType.ePedestrian);
-            }
-        });
+                .setPositiveButton("Car", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface paramDialogInterface, int paramInt) {
+                        initializeAppContent(eType.eCar);
+                    }
+                })
+                .setNegativeButton("Pedestrian", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface paramDialogInterface, int paramInt) {
+                        initializeAppContent(eType.ePedestrian);
+                    }
+                });
         dialog.show();
     }
 
     private void initializeAppContent(eType eMoveable) {
         initializeMap();
-        initializeHttpThread();
-        initializeFireBaseThread();
+        //initializeHttpThread();
+        IntializeDatabaseManager();
         initializeMarkersOverlay();
         initializeUser(eMoveable);
         initializeLocationManager();
     }
 
+    private void addToDb(Object obj) {
+        Message msg = mHandlerFireBase.obtainMessage();
+        msg.obj = obj;
+        msg.what = ConstMessages.MSG_SAVE_NEW_RECORD;
+        mHandlerFireBase.sendMessage(msg);
+    }
+
+    private void notifyConnection(String strName, String strUid, String strMoveableType) {
+        addToDb(new UserLoggedInRecord(strName, strUid, strMoveableType));
+    }
+
     private void initializeLocationManager() {
-        LocationManager locManager = (LocationManager)getSystemService(LOCATION_SERVICE);
-        if(!locManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) &&
-           !locManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
+        LocationManager locManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (!locManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) &&
+                !locManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
             return;
         }
 
         mLocationModuleThread = new LocationModule("LocationModuleThread", this, mHandlerUi);
         mLocationModuleThread.start();
+    }
 
-        mHandlerLocation = new Handler(mLocationModuleThread.getLooper());
+    private void IntializeDatabaseManager() {
+        mHandlerThreadFireBase = new DatabaseManager("DatabaseThread", mHandlerUi);
+        mHandlerThreadFireBase.start();
     }
 
     private void initializeUser(eType eMoveable) {
+        meUser = eMoveable;
+        mstrUid = FirebaseInstanceId.getInstance().getId();
     }
 
     private void initializeMap() {
@@ -160,29 +195,12 @@ public class MainActivity extends
 
     }
 
-    private void initializeFireBaseThread() {
-        handlerThreadFireBase = new HandlerThread("FireBaseThread");
-        handlerThreadFireBase.start();
-
-        mHandlerFireBase = new Handler(handlerThreadFireBase.getLooper()) {
-            @Override
-            public void handleMessage(Message msg) {
-                GeoPoint gPtIntersection = new GeoPoint(
-                        msg.getData().getDouble("latitude"),
-                        msg.getData().getDouble("longitude")
-                );
-
-                FireBaseMgr.getInstace().sendIntersection(gPtIntersection);
-            }
-        };
-    }
-
     private void PostOnNewLocationArrive(GeoPoint gPt) {
         final String strUrl = String.format(
                 "http://nominatim.openstreetmap.org/reverse?format=xml&lat=%s&lon=%s&zoom=18&email=krinitsa@gmail.com",
                 Double.toString(gPt.getLatitude()),
                 Double.toString(gPt.getLongitude()));
-        
+
         mHttpHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -195,7 +213,7 @@ public class MainActivity extends
                     con.setDoInput(true);
                     con.setDoOutput(true);
 
-                   int status = con.getResponseCode();
+                    int status = con.getResponseCode();
                     BufferedReader in = new BufferedReader(
                             new InputStreamReader(con.getInputStream()));
 
@@ -249,8 +267,7 @@ public class MainActivity extends
     @Override
     public void onConnected(Bundle bundle) {
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-        {
+                ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
     }
@@ -266,7 +283,7 @@ public class MainActivity extends
     }
 
     private void initializeMarkersOverlay() {
-        mMyLocationOverlay = new ExMyLocation(this, mMapView.getContext(), mMapView);
+        mMyLocationOverlay = new ExMyLocation(mHandlerUi, mMapView.getContext(), mMapView);
         mMapView.getOverlays().add(mMyLocationOverlay);
     }
 
@@ -281,8 +298,12 @@ public class MainActivity extends
         return mGoogleApiClient;
     }
 
-    public void updateActivityWithNewPoint(GeoPoint gPt) {
-        mMapController.setCenter(gPt);
+    public void updateActivityWithNewPoint(GeoPoint gPt, boolean bSetCenter) {
+        addToDb(new HotZoneRecord("koko", mstrUid, gPt.getLatitude(), gPt.getLongitude()));
+
+        if (bSetCenter)
+            mMapController.setCenter(gPt);
+
         AddPointToOverlay(gPt, 0, R.drawable.pin);
         mMapView.invalidate();
     }

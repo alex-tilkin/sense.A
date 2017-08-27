@@ -5,7 +5,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
-import android.location.Location;
+import android.os.Handler;
+import android.os.Message;
 import android.view.MotionEvent;
 
 import org.osmdroid.util.GeoPoint;
@@ -20,8 +21,8 @@ import java.util.ArrayList;
 
 class ExMyLocation extends MyLocationNewOverlay {
 
+    private final Handler mHandlerUi;
     private ArrayList<GeoPoint> mList;
-    private MainActivity mSender;
 
     @Override
     public void draw(Canvas canvas, MapView mapView, boolean shadow) {
@@ -54,22 +55,20 @@ class ExMyLocation extends MyLocationNewOverlay {
         MapView.Projection proj = map.getProjection();
 
         GeoPoint loc = (GeoPoint)proj.fromPixels(
-                (int)event.getX(),
-                (int)event.getY()
+                event.getX(),
+                event.getY()
         );
 
-        Location l = new Location("Manual");
-        l.setLatitude(((double)loc.getLatitudeE6())/1000000);
-        l.setLongitude(((double)loc.getLongitudeE6())/1000000);
-
-        //mSender.onLocationChanged(l, false);
-        return true;
+        Message msg = mHandlerUi.obtainMessage();
+        msg.what = ConstMessages.MSG_NEW_GPS_POINT;
+        msg.obj = loc;
+        return mHandlerUi.sendMessage(msg);
     }
 
-    public ExMyLocation(MainActivity oSender, Context ctx, MapView mapView) {
+    public ExMyLocation(Handler handlerUi, Context ctx, MapView mapView) {
         super(ctx, mapView);
-        mSender = oSender;
         mList = new ArrayList<GeoPoint>();
+        mHandlerUi = handlerUi;
     }
 
     public void AddItem(final GeoPoint gPt) {

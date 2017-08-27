@@ -41,11 +41,7 @@ public class LocationModule extends HandlerThread
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .addApi(LocationServices.API).build();
-    }
 
-    @Override
-    public void onLooperPrepared() {
-        super.onLooperPrepared();
         mGoogleApiClient.connect();
     }
 
@@ -86,19 +82,17 @@ public class LocationModule extends HandlerThread
             e.printStackTrace();
         }
 
-        Bundle bundleContet = new Bundle();
-        bundleContet.putDouble("longitude", location.getLongitude());
-        bundleContet.putDouble("latitude", location.getLatitude());
-
         Message msg = mUiHandler.obtainMessage();
         msg.what = ConstMessages.MSG_NEW_GPS_POINT;
-        msg.setData(bundleContet);
+        msg.obj = gPt;
+        msg.arg1 = 1; // set center
 
         mUiHandler.sendMessage(msg);
     }
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
+        // we must do it here, because location uses GoogleApiClient,
         initializeLocation();
         initializeKalman();
     }
@@ -112,5 +106,4 @@ public class LocationModule extends HandlerThread
     public void onConnectionFailed(ConnectionResult connectionResult) {
 
     }
-
 }
