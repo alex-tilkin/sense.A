@@ -19,10 +19,21 @@ import java.util.ArrayList;
  * Created by igalk on 8/12/2017.
  */
 
+class ExMyLocationPoint {
+    public int miColor;
+    public GeoPoint mGpt;
+
+    public ExMyLocationPoint(GeoPoint gPt, int iMarkerColor) {
+        miColor = iMarkerColor;
+        mGpt = gPt;
+    }
+}
+
 class ExMyLocation extends MyLocationNewOverlay {
 
+
     private final Handler mHandlerUi;
-    private ArrayList<GeoPoint> mList;
+    private ArrayList<ExMyLocationPoint> mList;
 
     @Override
     public void draw(Canvas canvas, MapView mapView, boolean shadow) {
@@ -36,10 +47,12 @@ class ExMyLocation extends MyLocationNewOverlay {
         paint.setStyle(Paint.Style.FILL_AND_STROKE);
         paint.setAlpha(50);
 
-        for(final GeoPoint gPt : mList) {
+        for(final ExMyLocationPoint exLocPoint : mList) {
             Point p = new Point();
-            projection.toMapPixels(new GeoPoint(gPt.getLatitude(),
-                    gPt.getLongitude()), p);
+            paint.setColor(exLocPoint.miColor);
+            projection.toMapPixels(new GeoPoint(
+                    exLocPoint.mGpt.getLatitude(),
+                    exLocPoint.mGpt.getLongitude()), p);
 
             canvas.drawCircle(p.x, p.y, actualRadius, paint);
         }
@@ -67,11 +80,11 @@ class ExMyLocation extends MyLocationNewOverlay {
 
     public ExMyLocation(Handler handlerUi, Context ctx, MapView mapView) {
         super(ctx, mapView);
-        mList = new ArrayList<GeoPoint>();
+        mList = new ArrayList<ExMyLocationPoint>();
         mHandlerUi = handlerUi;
     }
 
-    public void AddItem(final GeoPoint gPt) {
+    public void AddItem(final ExMyLocationPoint gPt) {
         mList.add(gPt);
     }
 }

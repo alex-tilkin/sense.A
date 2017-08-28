@@ -2,6 +2,7 @@ package com.exampledemo.parsaniahardik.gpsdemocode;
 
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -89,9 +90,16 @@ public class MainActivity extends
     private void onMessageArrive(Message msg) {
         switch (msg.what) {
             case ConstMessages.MSG_NEW_GPS_POINT:
+                addToDb(new HotZoneRecord(
+                        "koko",
+                        mstrUid,
+                        ((GeoPoint)msg.obj).getLatitude(),
+                        ((GeoPoint)msg.obj).getLongitude()));
+
                 updateActivityWithNewPoint(
                         (GeoPoint) msg.obj,
-                        msg.arg1 == 1);
+                        msg.arg1 == 1,
+                        Color.BLUE);
                 break;
             case ConstMessages.MSG_DB_HANDLER_CREATED:
                 mHandlerFireBase = (Handler) msg.obj;
@@ -100,7 +108,20 @@ public class MainActivity extends
             case ConstMessages.MSG_DB_NEW_USER_CONNECTED:
                 onUserConnected((UserLoggedInRecord)msg.obj);
                 break;
+            case ConstMessages.MSG_NEW_HOT_ZONE_POINT_ARRIVED:
+                onNewHotzonePntArrived((HotZoneRecord)msg.obj);
+                break;
         }
+    }
+
+    private void onNewHotzonePntArrived(HotZoneRecord obj) {
+        if(obj.mstrId == mstrUid)
+            return;
+
+        updateActivityWithNewPoint(new GeoPoint(
+                obj.mdbLatitude,
+                obj.mdbLongtitude)
+                , false, Color.RED);
     }
 
     private void onUserConnected(UserLoggedInRecord userUpdateInfo) {
@@ -287,10 +308,15 @@ public class MainActivity extends
         mMapView.getOverlays().add(mMyLocationOverlay);
     }
 
-    private void AddPointToOverlay(final GeoPoint gPt, final int index, int iDrawable) {
+    private void AddPointToOverlay(final GeoPoint gPt, final int index, int iDrawable, int iMarkerClr) {
         final OverlayItem overlayItem = new OverlayItem("", "", gPt);
         if (Looper.myLooper() == Looper.getMainLooper() && mMapView.getOverlays().size() > 0) {
-            ((ExMyLocation) mMapView.getOverlays().get(index)).AddItem(gPt);
+            ((ExMyLocation)mMapView
+                    .getOverlays()
+                    .get(index))
+                    .AddItem(new ExMyLocationPoint(
+                            gPt,
+                            iMarkerClr));
         }
     }
 
@@ -298,13 +324,11 @@ public class MainActivity extends
         return mGoogleApiClient;
     }
 
-    public void updateActivityWithNewPoint(GeoPoint gPt, boolean bSetCenter) {
-        addToDb(new HotZoneRecord("koko", mstrUid, gPt.getLatitude(), gPt.getLongitude()));
-
+    public void updateActivityWithNewPoint(GeoPoint gPt, boolean bSetCenter, int iMarkerClr) {
         if (bSetCenter)
             mMapController.setCenter(gPt);
 
-        AddPointToOverlay(gPt, 0, R.drawable.pin);
+        AddPointToOverlay(gPt, 0, R.drawable.pin, iMarkerClr);
         mMapView.invalidate();
     }
 }

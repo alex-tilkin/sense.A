@@ -52,7 +52,7 @@ public class DatabaseManager extends HandlerThread {
 
     private void initializeQueries() {
         mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefUsers, new UserLoggedInNotification(this)));
-        // mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefHotzones, new HotZoneNotification(this)));
+        mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefHotzones, new HotZoneNotification(this)));
     }
 
     private Query getQueryLastInsertedRecordByKey(DatabaseReference db, ChildEventListener events) {
@@ -111,24 +111,14 @@ public class DatabaseManager extends HandlerThread {
     }
 }
 
+abstract class DatabaseRecordTimeStampInitializer {
+    private HashMap<String, Object> mHashmapTimestamp;
 
-class UserLoggedInRecord implements DbRecord {
-    String mstrName;
-    String mstrId;
-    HashMap<String, Object> mHashmapTimestamp;
-    String mstrType;
-
-    public UserLoggedInRecord(String strName, String strId, String strType){
-        mstrName = strName;
-        mstrType = strType;
-
+    public DatabaseRecordTimeStampInitializer() {
         HashMap<String, Object> timestampNow = new HashMap<>();
         timestampNow.put("timestamp", ServerValue.TIMESTAMP);
         mHashmapTimestamp = timestampNow;
-        mstrId = strId;
     }
-
-    public UserLoggedInRecord() {}
 
     public HashMap<String, Object> getHashmapTimestamp(){
         return mHashmapTimestamp;
@@ -138,6 +128,22 @@ class UserLoggedInRecord implements DbRecord {
     public long getHashmapTimestampAsLong(){
         return (long)mHashmapTimestamp.get("timestamp");
     }
+}
+
+class UserLoggedInRecord extends DatabaseRecordTimeStampInitializer
+        implements DbRecord {
+    String mstrName;
+    String mstrId;
+    String mstrType;
+
+    public UserLoggedInRecord(String strName, String strId, String strType){
+        super();
+        mstrName = strName;
+        mstrType = strType;
+        mstrId = strId;
+    }
+
+    public UserLoggedInRecord() {}
 
     public String getMstrName() {
         return mstrName;
@@ -190,11 +196,25 @@ class UserLoggedInNotification
     }
 }
 
-class HotZoneRecord implements DbRecord {
+class HotZoneRecord extends DatabaseRecordTimeStampInitializer
+        implements DbRecord {
     String mstrName;
     String mstrId;
     Double mdbLatitude;
     Double mdbLongtitude;
+
+    public HotZoneRecord() {}
+    public HotZoneRecord(
+            String strName,
+            String strId,
+            Double dbLatitude,
+            Double dbLongtitude) {
+        super();
+        mstrName = strName;
+        mstrId = strId;
+        mdbLatitude = dbLatitude;
+        mdbLongtitude = dbLongtitude;
+    }
 
     public String getMstrName() {
         return mstrName;
@@ -210,17 +230,6 @@ class HotZoneRecord implements DbRecord {
 
     public double getMdbLongtitude() {
         return mdbLongtitude;
-    }
-
-    public HotZoneRecord(
-            String strName,
-            String strId,
-            Double dbLatitude,
-            Double dbLongtitude) {
-        mstrName = strName;
-        mstrId = strId;
-        mdbLatitude = dbLatitude;
-        mdbLongtitude = dbLongtitude;
     }
 }
 
