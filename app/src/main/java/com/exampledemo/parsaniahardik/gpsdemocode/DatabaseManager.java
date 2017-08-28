@@ -8,12 +8,12 @@ import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.Exclude;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
-import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.database.ServerValue;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Vector;
 
@@ -52,13 +52,13 @@ public class DatabaseManager extends HandlerThread {
 
     private void initializeQueries() {
         mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefUsers, new UserLoggedInNotification(this)));
-        mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefHotzones, new HotZoneNotification(this)));
+        // mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefHotzones, new HotZoneNotification(this)));
     }
 
-    private Query getQueryLastInsertedRecordByKey(DatabaseReference db, EventGetLastChildrenAdded events) {
-        Query query = db.orderByKey().limitToLast(1);
-        query.addChildEventListener((ChildEventListener)events);
-        query.addListenerForSingleValueEvent((ValueEventListener)events);
+    private Query getQueryLastInsertedRecordByKey(DatabaseReference db, ChildEventListener events) {
+        long nTimeStampNow = System.currentTimeMillis();
+        Query query = db.orderByChild("hashmapTimestamp/timestamp").limitToLast(1).startAt(nTimeStampNow);
+        query.addChildEventListener(events);
         return query;
     }
 
@@ -111,58 +111,32 @@ public class DatabaseManager extends HandlerThread {
     }
 }
 
-    abstract class EventGetLastChildrenAdded implements
-        ValueEventListener, ChildEventListener {
-
-        protected boolean mbInitialized;
-
-        public EventGetLastChildrenAdded() {
-            mbInitialized = false;
-        }
-
-        @Override
-        public void onDataChange(DataSnapshot dataSnapshot) {
-            mbInitialized = true;
-        }
-
-        @Override
-        public void onCancelled(DatabaseError databaseError) {
-
-        }
-
-        @Override
-        public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-
-        }
-
-        @Override
-        public void onChildRemoved(DataSnapshot dataSnapshot) {
-
-        }
-
-        @Override
-        public void onChildMoved(DataSnapshot dataSnapshot, String s) {
-
-        }
-    }
 
 class UserLoggedInRecord implements DbRecord {
     String mstrName;
     String mstrId;
-    String mstrLogTime;
+    HashMap<String, Object> mHashmapTimestamp;
     String mstrType;
 
     public UserLoggedInRecord(String strName, String strId, String strType){
         mstrName = strName;
         mstrType = strType;
-        mstrLogTime = new SimpleDateFormat("yyyy:MM:dd::HH:mm:ss").format(new Date());
+
+        HashMap<String, Object> timestampNow = new HashMap<>();
+        timestampNow.put("timestamp", ServerValue.TIMESTAMP);
+        mHashmapTimestamp = timestampNow;
         mstrId = strId;
     }
 
     public UserLoggedInRecord() {}
 
-    public String getMstrLogTime() {
-        return mstrLogTime;
+    public HashMap<String, Object> getHashmapTimestamp(){
+        return mHashmapTimestamp;
+    }
+
+    @Exclude
+    public long getHashmapTimestampAsLong(){
+        return (long)mHashmapTimestamp.get("timestamp");
     }
 
     public String getMstrName() {
@@ -179,7 +153,7 @@ class UserLoggedInRecord implements DbRecord {
 }
 
 class UserLoggedInNotification
-        extends EventGetLastChildrenAdded {
+        implements ChildEventListener {
 
     private final DatabaseManager mdbMngr;
 
@@ -190,10 +164,29 @@ class UserLoggedInNotification
 
     @Override
     public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-        if(mbInitialized) {
             mdbMngr.onTableDataChange(dataSnapshot.getValue(UserLoggedInRecord.class)
                     , ConstMessages.MSG_DB_NEW_USER_CONNECTED);
-        }
+
+    }
+
+    @Override
+    public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+
+    }
+
+    @Override
+    public void onChildRemoved(DataSnapshot dataSnapshot) {
+
+    }
+
+    @Override
+    public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+
+    }
+
+    @Override
+    public void onCancelled(DatabaseError databaseError) {
+
     }
 }
 
@@ -232,7 +225,7 @@ class HotZoneRecord implements DbRecord {
 }
 
 class HotZoneNotification
-        extends EventGetLastChildrenAdded {
+        implements ChildEventListener {
 
     private final DatabaseManager mdbMngr;
 
@@ -242,9 +235,28 @@ class HotZoneNotification
 
     @Override
     public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-        if(mbInitialized) {
-            mdbMngr.onTableDataChange(dataSnapshot.getValue(HotZoneRecord.class)
-                    , ConstMessages.MSG_NEW_HOT_ZONE_POINT_ARRIVED);
-        }
+        mdbMngr.onTableDataChange(dataSnapshot.getValue(HotZoneRecord.class)
+            , ConstMessages.MSG_NEW_HOT_ZONE_POINT_ARRIVED);
+
+    }
+
+    @Override
+    public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+
+    }
+
+    @Override
+    public void onChildRemoved(DataSnapshot dataSnapshot) {
+
+    }
+
+    @Override
+    public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+
+    }
+
+    @Override
+    public void onCancelled(DatabaseError databaseError) {
+
     }
 }
