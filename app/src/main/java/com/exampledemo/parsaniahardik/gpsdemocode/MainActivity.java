@@ -98,12 +98,12 @@ public class MainActivity extends
                 notifyConnection("koko", mstrUid, meUser.name());
                 break;
             case ConstMessages.MSG_DB_NEW_USER_CONNECTED:
-                onUserConnected((UserLoggedInNotification.UserLoggedInInfo)msg.obj);
+                onUserConnected((UserLoggedInRecord)msg.obj);
                 break;
         }
     }
 
-    private void onUserConnected(UserLoggedInNotification.UserLoggedInInfo userUpdateInfo) {
+    private void onUserConnected(UserLoggedInRecord userUpdateInfo) {
         if(userUpdateInfo.mstrId == mstrUid)
             return;
 

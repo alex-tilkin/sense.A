@@ -4,18 +4,26 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
 
+import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
+import java.util.Vector;
 
 /**
  * Created by igalk on 8/24/2017.
  */
+
+interface DbRecord {
+
+}
 
 public class DatabaseManager extends HandlerThread {
     final private Handler mHandlerUi;
@@ -24,24 +32,39 @@ public class DatabaseManager extends HandlerThread {
     private FirebaseDatabase mDatabase;
     private DatabaseReference mDBRefHotzones;
     private DatabaseReference mDBRefUsers;
+    private List<Query> mListQueries;
 
     public DatabaseManager(String name, Handler handlerUi) {
         super(name);
 
         mHandlerUi = handlerUi;
-        intializeDb();
-    }
+        mListQueries = new Vector<Query>();
 
-    private void setDbRefTriggers(DatabaseReference dbRef, ValueEventListener dbNotifys) {
-        dbRef.addValueEventListener(dbNotifys);
+        intializeDb();
     }
 
     private void intializeDb() {
         mDatabase = FirebaseDatabase.getInstance();
-        mDBRefHotzones =  mDatabase.getReference("hotZones");
-        mDBRefUsers = mDatabase.getReference("users");
-        setDbRefTriggers(mDBRefUsers, new UserLoggedInNotification(this));
-        setDbRefTriggers(mDBRefHotzones, new HotZoneNotification(this));
+
+        initializeDbReferences();
+        initializeQueries();
+    }
+
+    private void initializeQueries() {
+        mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefUsers, new UserLoggedInNotification(this)));
+        mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefHotzones, new HotZoneNotification(this)));
+    }
+
+    private Query getQueryLastInsertedRecordByKey(DatabaseReference db, EventGetLastChildrenAdded events) {
+        Query query = db.orderByKey().limitToLast(1);
+        query.addChildEventListener((ChildEventListener)events);
+        query.addListenerForSingleValueEvent((ValueEventListener)events);
+        return query;
+    }
+
+    private void initializeDbReferences() {
+        mDBRefHotzones =  mDatabase.getReference("/hotZones/");
+        mDBRefUsers = mDatabase.getReference("/users/");
     }
 
     @Override
@@ -80,7 +103,7 @@ public class DatabaseManager extends HandlerThread {
         return mHandlerSelf;
     }
 
-    public void onTableDataChange(DbChangeRcrd dbChangeInfo, int nEventType) {
+    public void onTableDataChange(DbRecord dbChangeInfo, int nEventType) {
         Message msg = mHandlerUi.obtainMessage();
         msg.what = nEventType;
         msg.obj = dbChangeInfo;
@@ -88,13 +111,40 @@ public class DatabaseManager extends HandlerThread {
     }
 }
 
-interface DbRecord {
+    abstract class EventGetLastChildrenAdded implements
+        ValueEventListener, ChildEventListener {
 
-}
+        protected boolean mbInitialized;
 
-interface DbChangeRcrd {
+        public EventGetLastChildrenAdded() {
+            mbInitialized = false;
+        }
 
-}
+        @Override
+        public void onDataChange(DataSnapshot dataSnapshot) {
+            mbInitialized = true;
+        }
+
+        @Override
+        public void onCancelled(DatabaseError databaseError) {
+
+        }
+
+        @Override
+        public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+
+        }
+
+        @Override
+        public void onChildRemoved(DataSnapshot dataSnapshot) {
+
+        }
+
+        @Override
+        public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+
+        }
+    }
 
 class UserLoggedInRecord implements DbRecord {
     String mstrName;
@@ -129,44 +179,21 @@ class UserLoggedInRecord implements DbRecord {
 }
 
 class UserLoggedInNotification
-        implements ValueEventListener {
-
-    class UserLoggedInInfo
-            implements DbChangeRcrd
-    {
-        public String mstrName;
-        public String mstrId;
-
-        public UserLoggedInInfo(
-                String strName,
-                String strId) {
-            mstrName = strName;
-            mstrId = strId;
-        }
-    }
+        extends EventGetLastChildrenAdded {
 
     private final DatabaseManager mdbMngr;
 
     public UserLoggedInNotification(DatabaseManager db) {
+        super();
         mdbMngr = db;
     }
 
     @Override
-    public void onDataChange(DataSnapshot dataSnapshot) {
-        UserLoggedInRecord p = dataSnapshot.getValue(UserLoggedInRecord.class);
-        // add protection
-        if(dataSnapshot.getValue() != null) {// means a new table was created
-            Iterable<DataSnapshot> itData = dataSnapshot.getChildren();
-            mdbMngr.onTableDataChange(new UserLoggedInInfo(
-                            dataSnapshot.child("mstrName").getValue().toString(),
-                            dataSnapshot.child("mstrId").getValue().toString())
+    public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+        if(mbInitialized) {
+            mdbMngr.onTableDataChange(dataSnapshot.getValue(UserLoggedInRecord.class)
                     , ConstMessages.MSG_DB_NEW_USER_CONNECTED);
         }
-    }
-
-    @Override
-    public void onCancelled(DatabaseError databaseError) {
-
     }
 }
 
@@ -205,27 +232,7 @@ class HotZoneRecord implements DbRecord {
 }
 
 class HotZoneNotification
-        implements ValueEventListener {
-
-    class HotZoneInfo
-            implements DbChangeRcrd {
-
-        public String mstrName;
-        public String mstrId;
-        public Double mdbLongtitude;
-        public Double mdbLatitude;
-
-        public HotZoneInfo(
-                String strName,
-                String strId,
-                Double dbLatitude,
-                Double dbLongtitude) {
-            mstrName = strName;
-            mstrId = strId;
-            mdbLatitude = dbLatitude;
-            mdbLongtitude = dbLongtitude;
-        }
-    }
+        extends EventGetLastChildrenAdded {
 
     private final DatabaseManager mdbMngr;
 
@@ -234,17 +241,10 @@ class HotZoneNotification
     }
 
     @Override
-    public void onDataChange(DataSnapshot dataSnapshot) {
-        mdbMngr.onTableDataChange(new HotZoneNotification.HotZoneInfo(
-                dataSnapshot.child("mstrName").getValue().toString(),
-                dataSnapshot.child("mstrId").getValue().toString(),
-                (Double)dataSnapshot.child("mdbLongtitude").getValue(),
-                (Double)dataSnapshot.child("mdbLatitude").getValue())
-                , ConstMessages.MSG_NEW_HOT_ZONE_POINT_ARRIVED);
-    }
-
-    @Override
-    public void onCancelled(DatabaseError databaseError) {
-
+    public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+        if(mbInitialized) {
+            mdbMngr.onTableDataChange(dataSnapshot.getValue(HotZoneRecord.class)
+                    , ConstMessages.MSG_NEW_HOT_ZONE_POINT_ARRIVED);
+        }
     }
 }
