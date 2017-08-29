@@ -12,6 +12,7 @@ import com.google.firebase.database.Exclude;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
 import com.google.firebase.database.ServerValue;
+import com.google.firebase.database.ValueEventListener;
 
 import java.util.HashMap;
 import java.util.List;
@@ -84,9 +85,29 @@ public class DatabaseManager extends HandlerThread {
         mHandlerUi.sendMessage(msg);
     };
 
-    public void SaveContent(DbRecord obj) {
+    public void SaveContent(final DbRecord obj) {
         if(obj instanceof HotZoneRecord) {
-            mDBRefHotzones.child(""). push().setValue((HotZoneRecord)obj);
+            mDBRefHotzones.orderByChild("mstrId").equalTo(((HotZoneRecord)obj).mstrId).limitToFirst(1).addListenerForSingleValueEvent(new ValueEventListener() {
+                @Override
+                public void onDataChange(DataSnapshot dataSnapshot) {
+                    HotZoneRecord hotZoneRecord = (HotZoneRecord)obj;
+                    if(dataSnapshot.hasChildren() == false){
+                        mDBRefHotzones.child("").push().setValue(hotZoneRecord);
+                    }
+                    else{
+                        for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
+                            String key = snapshot.getKey();
+                            mDBRefHotzones.child(key).setValue(hotZoneRecord);
+                        }
+                    }
+                }
+
+                @Override
+                public void onCancelled(DatabaseError databaseError) {
+
+                }
+            });
+
         } else if (obj instanceof UserLoggedInRecord) {
             mDBRefUsers.child("").push().setValue((UserLoggedInRecord)obj);
         }
