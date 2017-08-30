@@ -49,7 +49,7 @@ public class DatabaseManager extends HandlerThread {
 
         initializeDbReferences();
         initializeQueries();
-    }
+     }
 
     private void initializeQueries() {
         mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefUsers, new UserLoggedInNotification(this)));
@@ -83,7 +83,7 @@ public class DatabaseManager extends HandlerThread {
         msg.what = ConstMessages.MSG_DB_HANDLER_CREATED;
         msg.obj = mHandlerSelf;
         mHandlerUi.sendMessage(msg);
-    };
+    }
 
     public void SaveContent(final DbRecord obj) {
         if(obj instanceof HotZoneRecord) {
@@ -151,34 +151,6 @@ abstract class DatabaseRecordTimeStampInitializer {
     }
 }
 
-class UserLoggedInRecord extends DatabaseRecordTimeStampInitializer
-        implements DbRecord {
-    String mstrName;
-    String mstrId;
-    String mstrType;
-
-    public UserLoggedInRecord(String strName, String strId, String strType){
-        super();
-        mstrName = strName;
-        mstrType = strType;
-        mstrId = strId;
-    }
-
-    public UserLoggedInRecord() {}
-
-    public String getMstrName() {
-        return mstrName;
-    }
-
-    public String getMstrType() {
-        return mstrType;
-    }
-
-    public String getMstrId() {
-        return mstrId;
-    }
-}
-
 class UserLoggedInNotification
         implements ChildEventListener {
 
@@ -225,6 +197,7 @@ class HotZoneRecord extends DatabaseRecordTimeStampInitializer
     Double mdbLongtitude;
 
     public HotZoneRecord() {}
+
     public HotZoneRecord(
             String strName,
             String strId,
@@ -251,6 +224,34 @@ class HotZoneRecord extends DatabaseRecordTimeStampInitializer
 
     public double getMdbLongtitude() {
         return mdbLongtitude;
+    }
+}
+
+class UserLoggedInRecord extends DatabaseRecordTimeStampInitializer
+        implements DbRecord {
+    String mstrName;
+    String mstrId;
+    String mstrType;
+
+    public UserLoggedInRecord(String strName, String strId, String strType){
+        super();
+        mstrName = strName;
+        mstrType = strType;
+        mstrId = strId;
+    }
+
+    public UserLoggedInRecord() {}
+
+    public String getMstrName() {
+        return mstrName;
+    }
+
+    public String getMstrType() {
+        return mstrType;
+    }
+
+    public String getMstrId() {
+        return mstrId;
     }
 }
 
