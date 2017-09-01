@@ -8,10 +8,8 @@ import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.Exclude;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
-import com.google.firebase.database.ServerValue;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.HashMap;
@@ -31,7 +29,7 @@ public class DatabaseManager extends HandlerThread {
     private Handler mHandlerSelf;
 
     private FirebaseDatabase mDatabase;
-    private DatabaseReference mDBRefHotzones;
+    private DatabaseReference mDBRefClientLocation;
     private DatabaseReference mDBRefUsers;
     private List<Query> mListQueries;
 
@@ -51,20 +49,18 @@ public class DatabaseManager extends HandlerThread {
         initializeQueries();
      }
 
+
     private void initializeQueries() {
-        mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefUsers, new UserLoggedInNotification(this)));
-        mListQueries.add(getQueryLastInsertedRecordByKey(mDBRefHotzones, new HotZoneNotification(this)));
+        setDbEvents(mDBRefUsers, new UserLoggedInNotification(this));
+        setDbEvents(mDBRefClientLocation, new HotZoneNotification(this));
     }
 
-    private Query getQueryLastInsertedRecordByKey(DatabaseReference db, ChildEventListener events) {
-        long nTimeStampNow = System.currentTimeMillis();
-        Query query = db.orderByChild("hashmapTimestamp/timestamp").limitToLast(1).startAt(nTimeStampNow);
-        query.addChildEventListener(events);
-        return query;
+    private void setDbEvents(DatabaseReference db, ChildEventListener events) {
+        db.addChildEventListener(events);
     }
 
     private void initializeDbReferences() {
-        mDBRefHotzones =  mDatabase.getReference("/hotZones/");
+        mDBRefClientLocation =  mDatabase.getReference("/locations/");
         mDBRefUsers = mDatabase.getReference("/users/");
     }
 
@@ -87,29 +83,53 @@ public class DatabaseManager extends HandlerThread {
 
     public void SaveContent(final DbRecord obj) {
         if(obj instanceof HotZoneRecord) {
-            mDBRefHotzones.orderByChild("mstrId").equalTo(((HotZoneRecord)obj).mstrId).limitToFirst(1).addListenerForSingleValueEvent(new ValueEventListener() {
-                @Override
-                public void onDataChange(DataSnapshot dataSnapshot) {
-                    HotZoneRecord hotZoneRecord = (HotZoneRecord)obj;
-                    if(dataSnapshot.hasChildren() == false){
-                        mDBRefHotzones.child("").push().setValue(hotZoneRecord);
-                    }
-                    else{
-                        for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
-                            String key = snapshot.getKey();
-                            mDBRefHotzones.child(key).setValue(hotZoneRecord);
-                        }
-                    }
-                }
-
-                @Override
-                public void onCancelled(DatabaseError databaseError) {
-
-                }
-            });
-
+            HashMap<String, Object> hash = new HashMap<String, Object>();
+            hash.put("mdbLatitude", ((HotZoneRecord)obj).mdbLatitude);
+            hash.put("mdbLongtitude", ((HotZoneRecord)obj).mdbLongtitude);
+            makeUpdateInsertQueryForHotzone(mDBRefClientLocation, obj, "mstrId", hash);
         } else if (obj instanceof UserLoggedInRecord) {
-            mDBRefUsers.child("").push().setValue((UserLoggedInRecord)obj);
+            //mDBRefUsers.child("").push().setValue((UserLoggedInRecord)obj);
+            HashMap<String, Object> hash = new HashMap<String, Object>();
+            hash.put("mstrName", ((UserLoggedInRecord)obj).mstrName);
+            hash.put("mstrId", ((UserLoggedInRecord)obj).mstrId);
+            hash.put("mstrType", ((UserLoggedInRecord)obj).mstrType);
+            makeUpdateInsertQueryForHotzone(mDBRefUsers, obj, "mstrId", hash);
+        }
+    }
+
+    private void makeUpdateInsertQueryForHotzone(final DatabaseReference dbRef, final DbRecord obj, String strFieldName, final HashMap<String, Object> hashValues) {
+        try {
+            String strValue = (String)obj
+                    .getClass()
+                    .getDeclaredField(strFieldName)
+                    .get(obj);
+
+            dbRef.orderByChild(strFieldName)
+                    .equalTo(strValue)
+                    .limitToFirst(1)
+                    .addListenerForSingleValueEvent(new ValueEventListener(){
+                        @Override
+                        public void onDataChange(DataSnapshot dataSnapshot) {
+                            if(dataSnapshot.hasChildren() == false){
+                                dbRef.push().setValue(obj);
+                            } else {
+                                for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
+                                    String key = snapshot.getKey();
+
+                                    dbRef.child(key).updateChildren(hashValues);
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void onCancelled(DatabaseError databaseError) {
+
+                        }
+                    });
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (NoSuchFieldException e) {
+            e.printStackTrace();
         }
     }
 
@@ -132,26 +152,23 @@ public class DatabaseManager extends HandlerThread {
     }
 }
 
-abstract class DatabaseRecordTimeStampInitializer {
-    private HashMap<String, Object> mHashmapTimestamp;
+abstract class TableSyncInfo {
+    private boolean bSynced;
 
-    public DatabaseRecordTimeStampInitializer() {
-        HashMap<String, Object> timestampNow = new HashMap<>();
-        timestampNow.put("timestamp", ServerValue.TIMESTAMP);
-        mHashmapTimestamp = timestampNow;
+    public TableSyncInfo() {
+        bSynced = false;
     }
 
-    public HashMap<String, Object> getHashmapTimestamp(){
-        return mHashmapTimestamp;
+    public boolean DidSync() {
+        return bSynced;
     }
 
-    @Exclude
-    public long getHashmapTimestampAsLong(){
-        return (long)mHashmapTimestamp.get("timestamp");
+    public void SetSync() {
+        bSynced = true;
     }
 }
 
-class UserLoggedInNotification
+class UserLoggedInNotification extends TableSyncInfo
         implements ChildEventListener {
 
     private final DatabaseManager mdbMngr;
@@ -163,14 +180,20 @@ class UserLoggedInNotification
 
     @Override
     public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-            mdbMngr.onTableDataChange(dataSnapshot.getValue(UserLoggedInRecord.class)
-                    , ConstMessages.MSG_DB_NEW_USER_CONNECTED);
+        if(false == DidSync()) {
+            SetSync();
+            return;
+        }
+
+        mdbMngr.onTableDataChange(dataSnapshot.getValue(UserLoggedInRecord.class)
+            , ConstMessages.MSG_DB_NEW_USER_CONNECTED);
 
     }
 
     @Override
     public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-
+        int i;
+        i = 0;
     }
 
     @Override
@@ -189,7 +212,7 @@ class UserLoggedInNotification
     }
 }
 
-class HotZoneRecord extends DatabaseRecordTimeStampInitializer
+class HotZoneRecord
         implements DbRecord {
     String mstrName;
     String mstrId;
@@ -227,7 +250,7 @@ class HotZoneRecord extends DatabaseRecordTimeStampInitializer
     }
 }
 
-class UserLoggedInRecord extends DatabaseRecordTimeStampInitializer
+class UserLoggedInRecord //extends DatabaseRecordTimeStampInitializer
         implements DbRecord {
     String mstrName;
     String mstrId;
@@ -255,7 +278,7 @@ class UserLoggedInRecord extends DatabaseRecordTimeStampInitializer
     }
 }
 
-class HotZoneNotification
+class HotZoneNotification extends TableSyncInfo
         implements ChildEventListener {
 
     private final DatabaseManager mdbMngr;
@@ -266,6 +289,11 @@ class HotZoneNotification
 
     @Override
     public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+        if(false == DidSync()) {
+            SetSync();
+            return;
+        }
+
         mdbMngr.onTableDataChange(dataSnapshot.getValue(HotZoneRecord.class)
             , ConstMessages.MSG_NEW_HOT_ZONE_POINT_ARRIVED);
 
@@ -273,7 +301,8 @@ class HotZoneNotification
 
     @Override
     public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-
+        mdbMngr.onTableDataChange(dataSnapshot.getValue(HotZoneRecord.class)
+                , ConstMessages.MSG_NEW_HOT_ZONE_POINT_ARRIVED);
     }
 
     @Override

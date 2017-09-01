@@ -20,10 +20,12 @@ import java.util.ArrayList;
  */
 
 class ExMyLocationPoint {
+    public String mstrUid;
     public int miColor;
     public GeoPoint mGpt;
 
-    public ExMyLocationPoint(GeoPoint gPt, int iMarkerColor) {
+    public ExMyLocationPoint(GeoPoint gPt, String strUid, int iMarkerColor) {
+        mstrUid = strUid;
         miColor = iMarkerColor;
         mGpt = gPt;
     }
@@ -85,6 +87,13 @@ class ExMyLocation extends MyLocationNewOverlay {
     }
 
     public void AddItem(final ExMyLocationPoint gPt) {
+        for(ExMyLocationPoint pnt : mList) {
+            if(pnt.mstrUid.equals(gPt.mstrUid)) {
+                pnt.mGpt = gPt.mGpt;
+                return;
+            }
+        }
+
         mList.add(gPt);
     }
 }

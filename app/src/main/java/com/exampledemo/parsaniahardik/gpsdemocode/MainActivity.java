@@ -98,6 +98,7 @@ public class MainActivity extends
 
                 updateActivityWithNewPoint(
                         (GeoPoint) msg.obj,
+                        mstrUid,
                         msg.arg1 == 1,
                         Color.BLUE);
                 break;
@@ -115,17 +116,19 @@ public class MainActivity extends
     }
 
     private void onNewHotzonePntArrived(HotZoneRecord obj) {
-        if(obj.mstrId == mstrUid)
+        if(obj.mstrId.equals(mstrUid))
             return;
 
-        updateActivityWithNewPoint(new GeoPoint(
+        updateActivityWithNewPoint(
+                new GeoPoint(
                 obj.mdbLatitude,
-                obj.mdbLongtitude)
+                obj.mdbLongtitude),
+                obj.mstrId
                 , false, Color.RED);
     }
 
     private void onUserConnected(UserLoggedInRecord userUpdateInfo) {
-        if(userUpdateInfo.mstrId == mstrUid)
+        if(userUpdateInfo.mstrId.equals(mstrUid))
             return;
 
         AlertDialog.Builder dialog = new AlertDialog.Builder(this);
@@ -308,7 +311,12 @@ public class MainActivity extends
         mMapView.getOverlays().add(mMyLocationOverlay);
     }
 
-    private void AddPointToOverlay(final GeoPoint gPt, final int index, int iDrawable, int iMarkerClr) {
+    private void AddPointToOverlay(
+            final GeoPoint gPt,
+            String strSenderUid,
+            final int index,
+            int iDrawable,
+            int iMarkerClr) {
         final OverlayItem overlayItem = new OverlayItem("", "", gPt);
         if (Looper.myLooper() == Looper.getMainLooper() && mMapView.getOverlays().size() > 0) {
             ((ExMyLocation)mMapView
@@ -316,6 +324,7 @@ public class MainActivity extends
                     .get(index))
                     .AddItem(new ExMyLocationPoint(
                             gPt,
+                            strSenderUid,
                             iMarkerClr));
         }
     }
@@ -324,11 +333,11 @@ public class MainActivity extends
         return mGoogleApiClient;
     }
 
-    public void updateActivityWithNewPoint(GeoPoint gPt, boolean bSetCenter, int iMarkerClr) {
+    public void updateActivityWithNewPoint(GeoPoint gPt, String strSenderUid, boolean bSetCenter, int iMarkerClr) {
         if (bSetCenter)
             mMapController.setCenter(gPt);
 
-        AddPointToOverlay(gPt, 0, R.drawable.pin, iMarkerClr);
+        AddPointToOverlay(gPt, strSenderUid ,0, R.drawable.pin, iMarkerClr);
         mMapView.invalidate();
     }
 }
