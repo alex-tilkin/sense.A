@@ -76,13 +76,13 @@ public class MainActivity extends
             case ConstMessages.MSG_NEW_GPS_POINT:
                 addToDb(new HotZoneRecord(
                         "koko",
-                        mMoveable.getMstrUid(),
+                        mMoveable.mstrUid,
                         ((GeoPoint)msg.obj).getLatitude(),
                         ((GeoPoint)msg.obj).getLongitude()));
 
                 updateActivityWithNewPoint(
                         (GeoPoint) msg.obj,
-                        mMoveable.getMstrUid(),
+                        mMoveable.mstrUid,
                         msg.arg1 == 1,
                         Color.BLUE);
 
@@ -91,8 +91,8 @@ public class MainActivity extends
             case ConstMessages.MSG_DB_HANDLER_CREATED:
                 mHandlerFireBase = (Handler) msg.obj;
                 notifyConnection("koko",
-                        mMoveable.getMstrUid(),
-                        mMoveable.getMeMoveableType().name());
+                        mMoveable.mstrUid,
+                        mMoveable.meMoveableType.name());
                 break;
             case ConstMessages.MSG_DB_NEW_USER_CONNECTED:
                 onUserConnected((UserLoggedInRecord)msg.obj);
@@ -104,7 +104,7 @@ public class MainActivity extends
     }
 
     private void onNewHotzonePntArrived(HotZoneRecord obj) {
-        if(obj.mstrId.equals(mMoveable.getMstrUid()))
+        if(obj.mstrId.equals(mMoveable.mstrUid))
             return;
 
         updateActivityWithNewPoint(
@@ -116,7 +116,7 @@ public class MainActivity extends
     }
 
     private void onUserConnected(UserLoggedInRecord userUpdateInfo) {
-        if(userUpdateInfo.mstrId.equals(mMoveable.getMstrUid()))
+        if(userUpdateInfo.mstrId.equals(mMoveable.mstrUid))
             return;
 
         AlertDialog.Builder dialog = new AlertDialog.Builder(this);

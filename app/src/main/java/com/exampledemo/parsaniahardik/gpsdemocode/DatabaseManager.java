@@ -81,6 +81,9 @@ public class DatabaseManager extends HandlerThread {
         mHandlerUi.sendMessage(msg);
     }
 
+    // having a HASH is a shitty solution, can you serialize the entire object using
+    // the .class method? by updating the Timestamp itself, we would trigger the the OnChildModified.
+    // perheps we should have an enum indicating which change happened? GPS, or UserData
     public void SaveContent(final DbRecord obj) {
         if(obj instanceof HotZoneRecord) {
             HashMap<String, Object> hash = new HashMap<String, Object>();

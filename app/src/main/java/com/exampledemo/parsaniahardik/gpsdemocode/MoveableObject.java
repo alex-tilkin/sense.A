@@ -2,6 +2,8 @@ package com.exampledemo.parsaniahardik.gpsdemocode;
 
 import org.osmdroid.util.GeoPoint;
 
+import java.util.Date;
+
 /**
  * Created by igalk on 9/1/2017.
  */
@@ -12,14 +14,18 @@ public class MoveableObject {
         eCar
     };
 
-    protected GeoPoint mgptA;
-    protected GeoPoint mgptB;
-    protected eType meMoveableType;
-    protected String mstrUid;
+    public GeoPoint mgptLocation; // will hold the real location, either from mgptA, or mgptB
+    public GeoPoint mgptA; // the following 2 variables will be uplodated to DB
+    public GeoPoint mgptB; // and help us make the direction vector
+    public eType meMoveableType; // you can move this variable, you were right, dynamic_cast(instanceof) is a good solution
+    public String mstrUid;
+    public Long mnTimestamp; // will be sent each time to the DB, with local user time, to let know the DB that something
+                             // happened
 
     public MoveableObject(eType eMoveableObj, String strUid) {
         mstrUid = strUid;
         meMoveableType = eMoveableObj;
+        mnTimestamp = new Long(new Date().getTime());
     }
 
     public void addPoint(GeoPoint gpt) {
@@ -31,36 +37,8 @@ public class MoveableObject {
         }
     }
 
-    public GeoPoint getMgptA() {
-        return mgptA;
-    }
-
-    public void setMgptA(GeoPoint mgptA) {
-        this.mgptA = mgptA;
-    }
-
-    public GeoPoint getMgptB() {
-        return mgptB;
-    }
-
-    public void setMgptB(GeoPoint mgptB) {
-        this.mgptB = mgptB;
-    }
-
-    public eType getMeMoveableType() {
-        return meMoveableType;
-    }
-
-    public void setMeMoveableType(eType meMoveableType) {
-        this.meMoveableType = meMoveableType;
-    }
-
-    public String getMstrUid() {
-        return mstrUid;
-    }
-
-    public void setMstrUid(String mstrUid) {
-        this.mstrUid = mstrUid;
+    public boolean canCalculateTrajectory() {
+        return mgptA != null && mgptB != null;
     }
 }
 
