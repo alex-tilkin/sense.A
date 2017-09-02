@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
 import android.support.v4.app.ActivityCompat;
@@ -23,19 +22,6 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapController;
 import org.osmdroid.views.MapView;
-import org.osmdroid.views.overlay.OverlayItem;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
-
-enum eType {
-    ePedestrian,
-    eCar
-};
 
 class ConstMessages {
     public static final int MSG_NEW_GPS_POINT = 1;
@@ -60,12 +46,10 @@ public class MainActivity extends
     private MapView mMapView;
     private MapController mMapController;
 
-    private HandlerThread mHttpThread;
-    private Handler mHttpHandler;
     private DatabaseManager mHandlerThreadFireBase;
     private Handler mHandlerFireBase;
-    private eType meUser;
-    private String mstrUid;
+
+    private MoveableObject mMoveable;
 
     //endregion
 
@@ -92,19 +76,23 @@ public class MainActivity extends
             case ConstMessages.MSG_NEW_GPS_POINT:
                 addToDb(new HotZoneRecord(
                         "koko",
-                        mstrUid,
+                        mMoveable.getMstrUid(),
                         ((GeoPoint)msg.obj).getLatitude(),
                         ((GeoPoint)msg.obj).getLongitude()));
 
                 updateActivityWithNewPoint(
                         (GeoPoint) msg.obj,
-                        mstrUid,
+                        mMoveable.getMstrUid(),
                         msg.arg1 == 1,
                         Color.BLUE);
+
+                mMoveable.addPoint(((GeoPoint)msg.obj));
                 break;
             case ConstMessages.MSG_DB_HANDLER_CREATED:
                 mHandlerFireBase = (Handler) msg.obj;
-                notifyConnection("koko", mstrUid, meUser.name());
+                notifyConnection("koko",
+                        mMoveable.getMstrUid(),
+                        mMoveable.getMeMoveableType().name());
                 break;
             case ConstMessages.MSG_DB_NEW_USER_CONNECTED:
                 onUserConnected((UserLoggedInRecord)msg.obj);
@@ -116,7 +104,7 @@ public class MainActivity extends
     }
 
     private void onNewHotzonePntArrived(HotZoneRecord obj) {
-        if(obj.mstrId.equals(mstrUid))
+        if(obj.mstrId.equals(mMoveable.getMstrUid()))
             return;
 
         updateActivityWithNewPoint(
@@ -128,7 +116,7 @@ public class MainActivity extends
     }
 
     private void onUserConnected(UserLoggedInRecord userUpdateInfo) {
-        if(userUpdateInfo.mstrId.equals(mstrUid))
+        if(userUpdateInfo.mstrId.equals(mMoveable.getMstrUid()))
             return;
 
         AlertDialog.Builder dialog = new AlertDialog.Builder(this);
@@ -142,21 +130,20 @@ public class MainActivity extends
                 .setPositiveButton("Car", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface paramDialogInterface, int paramInt) {
-                        initializeAppContent(eType.eCar);
+                        initializeAppContent(MoveableObject.eType.eCar);
                     }
                 })
                 .setNegativeButton("Pedestrian", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface paramDialogInterface, int paramInt) {
-                        initializeAppContent(eType.ePedestrian);
+                        initializeAppContent(MoveableObject.eType.ePedestrian);
                     }
                 });
         dialog.show();
     }
 
-    private void initializeAppContent(eType eMoveable) {
+    private void initializeAppContent(MoveableObject.eType eMoveable) {
         initializeMap();
-        //initializeHttpThread();
         IntializeDatabaseManager();
         initializeMarkersOverlay();
         initializeUser(eMoveable);
@@ -190,9 +177,15 @@ public class MainActivity extends
         mHandlerThreadFireBase.start();
     }
 
-    private void initializeUser(eType eMoveable) {
-        meUser = eMoveable;
-        mstrUid = FirebaseInstanceId.getInstance().getId();
+    private void initializeUser(MoveableObject.eType eMoveable) {
+        switch (eMoveable) {
+            case ePedestrian:
+                mMoveable = new Pedestrian(FirebaseInstanceId.getInstance().getId());
+                break;
+            case eCar:
+                mMoveable = new Car(FirebaseInstanceId.getInstance().getId());
+                break;
+        }
     }
 
     private void initializeMap() {
@@ -201,61 +194,6 @@ public class MainActivity extends
         mMapView.setBuiltInZoomControls(true);
         mMapController = (MapController) mMapView.getController();
         mMapController.setZoom(100);
-    }
-
-    private void initializeHttpThread() {
-        mHttpThread = new HandlerThread("HttpThread");
-        mHttpThread.start();
-
-        mHttpHandler = new Handler(mHttpThread.getLooper()) {
-            @Override
-            public void handleMessage(Message msg) {
-                int i;
-                i = 1;
-                int v = 0;
-                v = 1;
-            }
-        };
-
-    }
-
-    private void PostOnNewLocationArrive(GeoPoint gPt) {
-        final String strUrl = String.format(
-                "http://nominatim.openstreetmap.org/reverse?format=xml&lat=%s&lon=%s&zoom=18&email=krinitsa@gmail.com",
-                Double.toString(gPt.getLatitude()),
-                Double.toString(gPt.getLongitude()));
-
-        mHttpHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                URL url = null;
-                try {
-                    url = new URL(strUrl);
-                    HttpURLConnection con = (HttpURLConnection) url.openConnection();
-                    con.setRequestMethod("GET");
-                    con.setRequestProperty("User-Agent", "Mozilla/5.0");
-                    con.setDoInput(true);
-                    con.setDoOutput(true);
-
-                    int status = con.getResponseCode();
-                    BufferedReader in = new BufferedReader(
-                            new InputStreamReader(con.getInputStream()));
-
-                    String inputLine;
-                    StringBuffer content = new StringBuffer();
-                    while ((inputLine = in.readLine()) != null) {
-                        content.append(inputLine);
-                    }
-
-                    in.close();
-                    con.disconnect();
-                } catch (MalformedURLException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
     }
 
     @Override
@@ -296,16 +234,6 @@ public class MainActivity extends
         }
     }
 
-    private void addIntersectionContentToFireBaseDb(GeoPoint gPtIntersection) {
-        Bundle bundleContet = new Bundle();
-        bundleContet.putDouble("longitude", gPtIntersection.getLongitude());
-        bundleContet.putDouble("latitude", gPtIntersection.getLatitude());
-
-        Message msgFireBase = Message.obtain(mHandlerFireBase);
-        msgFireBase.setData(bundleContet);
-        mHandlerFireBase.sendMessage(msgFireBase);
-    }
-
     private void initializeMarkersOverlay() {
         mMyLocationOverlay = new ExMyLocation(mHandlerUi, mMapView.getContext(), mMapView);
         mMapView.getOverlays().add(mMyLocationOverlay);
@@ -317,7 +245,6 @@ public class MainActivity extends
             final int index,
             int iDrawable,
             int iMarkerClr) {
-        final OverlayItem overlayItem = new OverlayItem("", "", gPt);
         if (Looper.myLooper() == Looper.getMainLooper() && mMapView.getOverlays().size() > 0) {
             ((ExMyLocation)mMapView
                     .getOverlays()
