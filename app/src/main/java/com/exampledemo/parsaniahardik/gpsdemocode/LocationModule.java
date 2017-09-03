@@ -27,15 +27,17 @@ public class LocationModule extends HandlerThread implements com.google.android.
     private final Handler mUiHandler;
     private LocationRequest mLocationRequest;
     private com.google.android.gms.location.LocationListener listener;
-    private long updateInterval = 2 * 1000;
-    private long fastestInterval = 2000;
+    private long mUpdateInterval = 2 * 1000;
+    private long mFastestInterval = 2000;
     private KalmanGPS m_KalmanGPS;
     //endregion
 
     //region API
-    public LocationModule(String name, Context context, Handler handlerUi) {
+    public LocationModule(String name, Context context, Handler handlerUi, long updateInterval, long fastestInterval) {
         super(name);
 
+        mUpdateInterval = updateInterval;
+        mFastestInterval = fastestInterval;
         mUiHandler = handlerUi;
         mGoogleApiClient = new GoogleApiClient.Builder(context)
                 .addConnectionCallbacks(this)
@@ -86,11 +88,11 @@ public class LocationModule extends HandlerThread implements com.google.android.
     }
 
     public long getUpdateInterval() {
-        return updateInterval;
+        return mUpdateInterval;
     }
 
     public long getFastestInterval() {
-        return fastestInterval;
+        return mFastestInterval;
     }
     //endregion
 
@@ -98,8 +100,8 @@ public class LocationModule extends HandlerThread implements com.google.android.
     protected void initializeLocation() {
         mLocationRequest = LocationRequest.create()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                .setInterval(updateInterval)
-                .setFastestInterval(fastestInterval);
+                .setInterval(mUpdateInterval)
+                .setFastestInterval(mFastestInterval);
 
         LocationServices
                 .FusedLocationApi

@@ -32,6 +32,11 @@ class ConstMessages {
     public static final int MSG_NEW_HOT_ZONE_POINT_ARRIVED = MSG_DB_NEW_USER_CONNECTED + 1;
 }
 
+class ConstPreferencesKey{
+    public static final String GPS_FASTEST_INTERVAL = "GpsFastestInterval";
+    public static final String GPS_UPDATE_INTERVAL = "GpsUpdateInterval";
+}
+
 public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
 
@@ -51,6 +56,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
     private MoveableObject mMoveable;
 
+    private SharedPreferences mSettings;
     private static final String PREFERENCES_NAME = "Preferences";
     //endregion
 
@@ -86,17 +92,14 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (mGoogleApiClient.isConnected()) {
+
+        if (mGoogleApiClient.isConnected())
             mGoogleApiClient.disconnect();
-        }
 
-        // We need an Editor object to make preference changes.
-        // All objects are from android.context.Context
-        SharedPreferences settings = getSharedPreferences(PREFERENCES_NAME, 0);
-        SharedPreferences.Editor editor = settings.edit();
-        //editor.putBoolean("silentMode", mSilentMode);
+        SharedPreferences.Editor editor = mSettings.edit();
+        editor.putLong(ConstPreferencesKey.GPS_FASTEST_INTERVAL, mLocationModuleThread.getFastestInterval());
+        editor.putLong(ConstPreferencesKey.GPS_UPDATE_INTERVAL, mLocationModuleThread.getUpdateInterval());
 
-        // Commit the edits!
         editor.commit();
     }
 
@@ -166,7 +169,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             return;
         }
 
-        mLocationModuleThread = new LocationModule("LocationModuleThread", this, mHandlerUi);
+        long updateInterval = mSettings.getLong(ConstPreferencesKey.GPS_UPDATE_INTERVAL, 0);
+        long fastestInterval = mSettings.getLong(ConstPreferencesKey.GPS_FASTEST_INTERVAL, 0);
+        mLocationModuleThread = new LocationModule("LocationModuleThread", this, mHandlerUi, updateInterval, fastestInterval);
+
         mLocationModuleThread.start();
     }
 
