@@ -19,20 +19,20 @@ import org.osmdroid.util.GeoPoint;
  * Created by igalk on 8/22/2017.
  */
 
-public class LocationModule extends HandlerThread
-        implements com.google.android.gms.location.LocationListener,
-        GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener{
+public class LocationModule extends HandlerThread implements com.google.android.gms.location.LocationListener,
+        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener{
 
+    //region Fields
     private final GoogleApiClient mGoogleApiClient;
     private final Handler mUiHandler;
     private LocationRequest mLocationRequest;
     private com.google.android.gms.location.LocationListener listener;
-    private final long UPDATE_INTERVAL = 2 * 1000;  /* 10 secs */
-    private final long FASTEST_INTERVAL = 2000; /* 2 sec */
-
+    private long updateInterval = 2 * 1000;
+    private long fastestInterval = 2000;
     private KalmanGPS m_KalmanGPS;
+    //endregion
 
+    //region API
     public LocationModule(String name, Context context, Handler handlerUi) {
         super(name);
 
@@ -43,28 +43,6 @@ public class LocationModule extends HandlerThread
                 .addApi(LocationServices.API).build();
 
         mGoogleApiClient.connect();
-    }
-
-    protected void initializeLocation() {
-        mLocationRequest = LocationRequest.create()
-                .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                .setInterval(UPDATE_INTERVAL)
-                .setFastestInterval(FASTEST_INTERVAL);
-
-        LocationServices
-                .FusedLocationApi
-                .requestLocationUpdates(
-                        mGoogleApiClient,
-                        mLocationRequest,
-                        this);
-    }
-
-    private void initializeKalman() {
-        try {
-            m_KalmanGPS = new KalmanGPS();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     @Override
@@ -106,4 +84,37 @@ public class LocationModule extends HandlerThread
     public void onConnectionFailed(ConnectionResult connectionResult) {
 
     }
+
+    public long getUpdateInterval() {
+        return updateInterval;
+    }
+
+    public long getFastestInterval() {
+        return fastestInterval;
+    }
+    //endregion
+
+    //region Helpers
+    protected void initializeLocation() {
+        mLocationRequest = LocationRequest.create()
+                .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+                .setInterval(updateInterval)
+                .setFastestInterval(fastestInterval);
+
+        LocationServices
+                .FusedLocationApi
+                .requestLocationUpdates(
+                        mGoogleApiClient,
+                        mLocationRequest,
+                        this);
+    }
+
+    private void initializeKalman() {
+        try {
+            m_KalmanGPS = new KalmanGPS();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    //endregion
 }

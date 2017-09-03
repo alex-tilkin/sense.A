@@ -1,6 +1,7 @@
 package com.exampledemo.parsaniahardik.gpsdemocode;
 
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.LocationManager;
@@ -31,10 +32,9 @@ class ConstMessages {
     public static final int MSG_NEW_HOT_ZONE_POINT_ARRIVED = MSG_DB_NEW_USER_CONNECTED + 1;
 }
 
-public class MainActivity extends
-        AppCompatActivity implements
-        GoogleApiClient.ConnectionCallbacks,
+public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
+
     //region Fields
     private static final String TAG = "MainActivity";
     private GoogleApiClient mGoogleApiClient;
@@ -51,8 +51,10 @@ public class MainActivity extends
 
     private MoveableObject mMoveable;
 
+    private static final String PREFERENCES_NAME = "Preferences";
     //endregion
 
+    //region Methods
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -69,6 +71,111 @@ public class MainActivity extends
                 onMessageArrive(msg);
             }
         };
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        if (mGoogleApiClient != null) {
+            mGoogleApiClient.connect();
+        }
+        initializeAppContent(MoveableObject.eType.ePedestrian);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mGoogleApiClient.isConnected()) {
+            mGoogleApiClient.disconnect();
+        }
+
+        // We need an Editor object to make preference changes.
+        // All objects are from android.context.Context
+        SharedPreferences settings = getSharedPreferences(PREFERENCES_NAME, 0);
+        SharedPreferences.Editor editor = settings.edit();
+        //editor.putBoolean("silentMode", mSilentMode);
+
+        // Commit the edits!
+        editor.commit();
+    }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+        Log.i(TAG, "Connection Suspended");
+        mGoogleApiClient.connect();
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+        Log.i(TAG, "Connection failed. Error: " + connectionResult.getErrorCode());
+    }
+    //endregion
+
+    //region Helpers
+    private void initializeAppContent(MoveableObject.eType eMoveable) {
+        initializeMap();
+        IntializeDatabaseManager();
+        initializeMarkersOverlay();
+        initializeUser(eMoveable);
+        initializeLocationManager();
+    }
+
+    private void initializeMap() {
+        mMapView = (MapView) findViewById(R.id.mapview);
+        mMapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE);
+        mMapView.setBuiltInZoomControls(true);
+        mMapController = (MapController) mMapView.getController();
+        mMapController.setZoom(100);
+    }
+
+    private void IntializeDatabaseManager() {
+        mHandlerThreadFireBase = new DatabaseManager("DatabaseThread", mHandlerUi);
+        mHandlerThreadFireBase.start();
+    }
+
+    private void initializeMarkersOverlay() {
+        mMyLocationOverlay = new ExMyLocation(mHandlerUi, mMapView.getContext(), mMapView);
+        mMapView.getOverlays().add(mMyLocationOverlay);
+    }
+
+    private void initializeUser(MoveableObject.eType eMoveable) {
+        switch (eMoveable) {
+            case ePedestrian:
+                mMoveable = new Pedestrian(FirebaseInstanceId.getInstance().getId());
+                break;
+            case eCar:
+                mMoveable = new Car(FirebaseInstanceId.getInstance().getId());
+                break;
+        }
+    }
+
+    private void initializeLocationManager() {
+        LocationManager locManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+
+        if (!locManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) &&
+                !locManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
+            return;
+        }
+
+        mLocationModuleThread = new LocationModule("LocationModuleThread", this, mHandlerUi);
+        mLocationModuleThread.start();
+    }
+
+    private void updateActivityWithNewPoint(GeoPoint gPt, String strSenderUid, boolean bSetCenter, int iMarkerClr) {
+        if (bSetCenter)
+            mMapController.setCenter(gPt);
+
+        AddPointToOverlay(gPt, strSenderUid, 0, R.drawable.pin, iMarkerClr);
+        mMapView.invalidate();
     }
 
     private void onMessageArrive(Message msg) {
@@ -124,10 +231,33 @@ public class MainActivity extends
         dialog.show();
     }
 
+    private void addToDb(Object obj) {
+        Message msg = mHandlerFireBase.obtainMessage();
+        msg.obj = obj;
+        msg.what = ConstMessages.MSG_SAVE_NEW_RECORD;
+        mHandlerFireBase.sendMessage(msg);
+    }
+
+    private void notifyConnection(String strName, String strUid, String strMoveableType) {
+        addToDb(new UserLoggedInRecord(strName, strUid, strMoveableType, new HotZoneRecord("", "", 0.0, 0.0)));
+    }
+
+    private void AddPointToOverlay(final GeoPoint gPt, String strSenderUid, final int index, int iDrawable, int iMarkerClr) {
+        if (Looper.myLooper() == Looper.getMainLooper() && mMapView.getOverlays().size() > 0) {
+            ((ExMyLocation)mMapView
+                    .getOverlays()
+                    .get(index))
+                    .AddItem(new ExMyLocationPoint(
+                            gPt,
+                            strSenderUid,
+                            iMarkerClr));
+        }
+    }
+
     private void decideUserType() {
         AlertDialog.Builder dialog = new AlertDialog.Builder(this);
         dialog.setCancelable(false)
-                .setPositiveButton("Car", new DialogInterface.OnClickListener() {
+                .setPositiveButton("Vehicle", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface paramDialogInterface, int paramInt) {
                         initializeAppContent(MoveableObject.eType.eCar);
@@ -141,130 +271,5 @@ public class MainActivity extends
                 });
         dialog.show();
     }
-
-    private void initializeAppContent(MoveableObject.eType eMoveable) {
-        initializeMap();
-        IntializeDatabaseManager();
-        initializeMarkersOverlay();
-        initializeUser(eMoveable);
-        initializeLocationManager();
-    }
-
-    private void addToDb(Object obj) {
-        Message msg = mHandlerFireBase.obtainMessage();
-        msg.obj = obj;
-        msg.what = ConstMessages.MSG_SAVE_NEW_RECORD;
-        mHandlerFireBase.sendMessage(msg);
-    }
-
-    private void notifyConnection(String strName, String strUid, String strMoveableType) {
-        addToDb(new UserLoggedInRecord(strName, strUid, strMoveableType));
-    }
-
-    private void initializeLocationManager() {
-        LocationManager locManager = (LocationManager) getSystemService(LOCATION_SERVICE);
-        if (!locManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) &&
-                !locManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
-            return;
-        }
-
-        mLocationModuleThread = new LocationModule("LocationModuleThread", this, mHandlerUi);
-        mLocationModuleThread.start();
-    }
-
-    private void IntializeDatabaseManager() {
-        mHandlerThreadFireBase = new DatabaseManager("DatabaseThread", mHandlerUi);
-        mHandlerThreadFireBase.start();
-    }
-
-    private void initializeUser(MoveableObject.eType eMoveable) {
-        switch (eMoveable) {
-            case ePedestrian:
-                mMoveable = new Pedestrian(FirebaseInstanceId.getInstance().getId());
-                break;
-            case eCar:
-                mMoveable = new Car(FirebaseInstanceId.getInstance().getId());
-                break;
-        }
-    }
-
-    private void initializeMap() {
-        mMapView = (MapView) findViewById(R.id.mapview);
-        mMapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE);
-        mMapView.setBuiltInZoomControls(true);
-        mMapController = (MapController) mMapView.getController();
-        mMapController.setZoom(100);
-    }
-
-    @Override
-    public void onConnectionSuspended(int i) {
-        Log.i(TAG, "Connection Suspended");
-        mGoogleApiClient.connect();
-    }
-
-    @Override
-    public void onConnectionFailed(ConnectionResult connectionResult) {
-        Log.i(TAG, "Connection failed. Error: " + connectionResult.getErrorCode());
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-
-        if (mGoogleApiClient != null) {
-            mGoogleApiClient.connect();
-        }
-
-        decideUserType();
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        if (mGoogleApiClient.isConnected()) {
-            mGoogleApiClient.disconnect();
-        }
-    }
-
-    @Override
-    public void onConnected(Bundle bundle) {
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-    }
-
-    private void initializeMarkersOverlay() {
-        mMyLocationOverlay = new ExMyLocation(mHandlerUi, mMapView.getContext(), mMapView);
-        mMapView.getOverlays().add(mMyLocationOverlay);
-    }
-
-    private void AddPointToOverlay(
-            final GeoPoint gPt,
-            String strSenderUid,
-            final int index,
-            int iDrawable,
-            int iMarkerClr) {
-        if (Looper.myLooper() == Looper.getMainLooper() && mMapView.getOverlays().size() > 0) {
-            ((ExMyLocation)mMapView
-                    .getOverlays()
-                    .get(index))
-                    .AddItem(new ExMyLocationPoint(
-                            gPt,
-                            strSenderUid,
-                            iMarkerClr));
-        }
-    }
-
-    public GoogleApiClient getGoogleApi() {
-        return mGoogleApiClient;
-    }
-
-    public void updateActivityWithNewPoint(GeoPoint gPt, String strSenderUid, boolean bSetCenter, int iMarkerClr) {
-        if (bSetCenter)
-            mMapController.setCenter(gPt);
-
-        AddPointToOverlay(gPt, strSenderUid ,0, R.drawable.pin, iMarkerClr);
-        mMapView.invalidate();
-    }
+    //endregion
 }

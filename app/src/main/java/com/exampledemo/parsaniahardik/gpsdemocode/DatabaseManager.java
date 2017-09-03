@@ -49,7 +49,6 @@ public class DatabaseManager extends HandlerThread {
         initializeQueries();
      }
 
-
     private void initializeQueries() {
         setDbEvents(mDBRefUsers, new UserLoggedInNotification(this));
         setDbEvents(mDBRefClientLocation, new HotZoneNotification(this));
@@ -89,18 +88,18 @@ public class DatabaseManager extends HandlerThread {
             HashMap<String, Object> hash = new HashMap<String, Object>();
             hash.put("mdbLatitude", ((HotZoneRecord)obj).mdbLatitude);
             hash.put("mdbLongtitude", ((HotZoneRecord)obj).mdbLongtitude);
-            makeUpdateInsertQueryForHotzone(mDBRefClientLocation, obj, "mstrId", hash);
+            makeUpdateInsertQuery(mDBRefUsers, obj, "mstrId", hash);
         } else if (obj instanceof UserLoggedInRecord) {
             //mDBRefUsers.child("").push().setValue((UserLoggedInRecord)obj);
             HashMap<String, Object> hash = new HashMap<String, Object>();
             hash.put("mstrName", ((UserLoggedInRecord)obj).mstrName);
             hash.put("mstrId", ((UserLoggedInRecord)obj).mstrId);
             hash.put("mstrType", ((UserLoggedInRecord)obj).mstrType);
-            makeUpdateInsertQueryForHotzone(mDBRefUsers, obj, "mstrId", hash);
+            makeUpdateInsertQuery(mDBRefUsers, obj, "mstrId", hash);
         }
     }
 
-    private void makeUpdateInsertQueryForHotzone(final DatabaseReference dbRef, final DbRecord obj, String strFieldName, final HashMap<String, Object> hashValues) {
+    private void makeUpdateInsertQuery(final DatabaseReference dbRef, final DbRecord obj, String strFieldName, final HashMap<String, Object> hashValues) {
         try {
             String strValue = (String)obj
                     .getClass()
@@ -119,7 +118,11 @@ public class DatabaseManager extends HandlerThread {
                                 for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
                                     String key = snapshot.getKey();
 
-                                    dbRef.child(key).updateChildren(hashValues);
+                                    if(obj instanceof HotZoneRecord) {
+                                        dbRef.child(key).child("mHotZoneRecord").updateChildren(hashValues);
+                                    }
+                                    else
+                                        dbRef.child(key).updateChildren(hashValues);
                                 }
                             }
                         }
@@ -253,17 +256,19 @@ class HotZoneRecord
     }
 }
 
-class UserLoggedInRecord //extends DatabaseRecordTimeStampInitializer
+class UserLoggedInRecord
         implements DbRecord {
     String mstrName;
     String mstrId;
     String mstrType;
+    HotZoneRecord mHotZoneRecord;
 
-    public UserLoggedInRecord(String strName, String strId, String strType){
+    public UserLoggedInRecord(String strName, String strId, String strType, HotZoneRecord hotZoneRecord){
         super();
         mstrName = strName;
         mstrType = strType;
         mstrId = strId;
+        mHotZoneRecord = hotZoneRecord;
     }
 
     public UserLoggedInRecord() {}
